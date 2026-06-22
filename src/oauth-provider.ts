@@ -193,7 +193,7 @@ export class SingleUserOAuthProvider implements OAuthServerProvider {
     }
 
     if (res.req.method !== "POST") {
-      setAuthorizationResponseHeaders(res);
+      setAuthorizationResponseHeaders(res, params.redirectUri);
       res.status(200);
       res.send(
         formHtml({
@@ -209,7 +209,7 @@ export class SingleUserOAuthProvider implements OAuthServerProvider {
     const attemptKey = res.req.socket.remoteAddress ?? "unknown";
     const retryAfterSeconds = this.authorizationFailureLimiter.retryAfterSeconds(attemptKey);
     if (retryAfterSeconds > 0) {
-      setAuthorizationResponseHeaders(res);
+      setAuthorizationResponseHeaders(res, params.redirectUri);
       res.setHeader("Retry-After", String(retryAfterSeconds));
       res.status(429);
       res.send(
@@ -227,7 +227,7 @@ export class SingleUserOAuthProvider implements OAuthServerProvider {
     const providedToken = String(res.req.body?.owner_token ?? "");
     if (!safeEquals(providedToken, this.config.ownerToken)) {
       this.authorizationFailureLimiter.recordFailure(attemptKey);
-      setAuthorizationResponseHeaders(res);
+      setAuthorizationResponseHeaders(res, params.redirectUri);
       res.status(401);
       res.send(
         formHtml({
@@ -391,16 +391,21 @@ export class SingleUserOAuthProvider implements OAuthServerProvider {
   }
 }
 
-function setAuthorizationResponseHeaders(res: Response): void {
-  res.setHeader("Content-Type", "text/html; charset=utf-8");
-  res.setHeader("Cache-Control", "no-store");
-  res.setHeader("Content-Security-Policy", [
+export function authorizationContentSecurityPolicy(redirectUri: string): string {
+  const redirectOrigin = new URL(redirectUri).origin;
+  return [
     "default-src 'none'",
     "style-src 'unsafe-inline'",
-    "form-action 'self'",
+    `form-action 'self' ${redirectOrigin}`,
     "base-uri 'none'",
     "frame-ancestors 'none'",
-  ].join("; "));
+  ].join("; ");
+}
+
+function setAuthorizationResponseHeaders(res: Response, redirectUri: string): void {
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("Content-Security-Policy", authorizationContentSecurityPolicy(redirectUri));
   res.setHeader("X-Frame-Options", "DENY");
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("Referrer-Policy", "no-referrer");

@@ -8,6 +8,7 @@ import { databasePath, openDatabase } from "./db/client.js";
 import {
   AuthorizationFailureLimiter,
   SingleUserOAuthProvider,
+  authorizationContentSecurityPolicy,
 } from "./oauth-provider.js";
 import { SqliteOAuthClientsStore, SqliteOAuthStore } from "./oauth-store.js";
 
@@ -26,6 +27,7 @@ const redirectUri = "https://chatgpt.com/connector_platform_oauth_redirect";
 
 try {
   testAuthorizationFailureLimiter();
+  testAuthorizationContentSecurityPolicy();
   await testDatabaseConfiguration(join(root, "database-configuration"));
   testRedirectUriSecurity(join(root, "redirect-security"));
   testPersistenceAndTokenHashing(join(root, "persistence"));
@@ -71,6 +73,19 @@ function testAuthorizationFailureLimiter(): void {
   limiter.recordFailure("client");
   now += 10_001;
   assert.equal(limiter.retryAfterSeconds("client"), 0);
+}
+
+function testAuthorizationContentSecurityPolicy(): void {
+  assert.equal(
+    authorizationContentSecurityPolicy(
+      "https://chatgpt.com/connector/oauth/callback-id?code=ignored",
+    ),
+    "default-src 'none'; style-src 'unsafe-inline'; form-action 'self' https://chatgpt.com; base-uri 'none'; frame-ancestors 'none'",
+  );
+  assert.equal(
+    authorizationContentSecurityPolicy("http://127.0.0.1:3456/callback"),
+    "default-src 'none'; style-src 'unsafe-inline'; form-action 'self' http://127.0.0.1:3456; base-uri 'none'; frame-ancestors 'none'",
+  );
 }
 
 async function testDatabaseConfiguration(stateDir: string): Promise<void> {
