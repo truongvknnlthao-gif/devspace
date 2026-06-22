@@ -135,12 +135,13 @@ DevSpace gives ChatGPT tools to:
 
 ## Mental Model
 
-DevSpace is remote access to selected local folders.
+DevSpace is remote access to local development workspaces.
 
-You decide which roots are allowed. The MCP client still has powerful local
-capabilities inside an opened workspace, including shell execution when it is
-explicitly enabled. Treat a connected client like a trusted coding partner
-with access to your machine.
+You decide whether workspace roots are narrow or unrestricted. When shell
+execution is enabled, configured roots are an organization boundary for the
+structured file tools, not a security sandbox: shell commands have the
+permissions of the DevSpace operating-system user. Treat an approved client
+like a trusted coding partner with access to that user account.
 
 After approving a trusted client with the Owner password, enable complete local
 development workflows with `DEVSPACE_SHELL_ENABLED=1`. The shell supports
@@ -154,7 +155,7 @@ For a normal ChatGPT coding session:
 2. Run `devspace serve`.
 3. Connect the MCP client to your public `/mcp` URL.
 4. Approve the connection with the Owner password.
-5. Ask ChatGPT to open a project inside one of your allowed roots.
+5. Ask ChatGPT to open a project inside one of your configured roots.
 
 ## Platform Support
 

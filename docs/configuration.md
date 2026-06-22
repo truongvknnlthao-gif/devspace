@@ -143,3 +143,10 @@ npx @waishnav/devspace serve
 
 The environment assignments must be part of the same command invocation, or
 exported first.
+
+For a single-user, Owner-approved deployment where shell access is enabled and
+the operating-system account is the intended permission boundary, set
+`DEVSPACE_ALLOWED_ROOTS=/`. This lets the structured workspace tools open any
+path the DevSpace user can access. Keep the narrower default when shell access
+is disabled or when roots are intentionally used to organize separate trust
+zones.

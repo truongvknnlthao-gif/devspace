@@ -5,14 +5,14 @@ to your development machine.
 
 The security model is simple:
 
-- you choose a narrow filesystem allowlist
 - the MCP endpoint requires OAuth approval with your Owner password
-- Host headers are allowlisted from the configured public URL
+- Host headers and OAuth redirect hosts are allowlisted
+- the DevSpace operating-system user remains the local permission boundary
 - every coding action happens through explicit MCP tool calls
 
 ## Filesystem Allowlist
 
-DevSpace only opens workspaces under configured roots.
+DevSpace only opens structured workspaces under configured roots.
 
 Good examples:
 
@@ -29,8 +29,15 @@ Avoid broad roots:
 C:\
 ```
 
-The narrower the root, the easier it is to reason about what the MCP client can
-reach.
+The narrower the root, the easier it is to reason about what structured file
+tools can open.
+
+For a single-user deployment where Owner OAuth approval establishes trust and
+shell access is enabled, you may deliberately configure `/` as the only root.
+That removes the workspace allowlist while preserving operating-system
+permissions. This does not materially expand shell authority, because the
+shell already runs as the DevSpace user; it makes structured file tools
+consistent with that trust model.
 
 ## Owner Password
 
