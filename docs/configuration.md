@@ -38,7 +38,7 @@ npx @waishnav/devspace config set publicBaseUrl https://devspace.example.com
 | `DEVSPACE_OAUTH_OWNER_TOKEN` | Owner password for OAuth approval. Must be at least 16 characters. |
 | `DEVSPACE_WORKTREE_ROOT` | Directory for managed Git worktrees. Defaults to `~/.devspace/worktrees`. |
 | `DEVSPACE_STATE_DIR` | Directory for SQLite state. Defaults to `~/.local/share/devspace`. |
-| `DEVSPACE_SHELL_ENABLED` | Set to `1` to expose shell execution. Disabled by default. |
+| `DEVSPACE_SHELL_ENABLED` | Set to `1` to expose complete local command-line development workflows. Disabled by default in the distributable configuration. |
 
 ## OAuth
 
@@ -82,8 +82,8 @@ Shell execution is intentionally separate from tool mode:
 DEVSPACE_SHELL_ENABLED=1 npx @waishnav/devspace serve
 ```
 
-Only enable it for a trusted client and preferably under a dedicated,
-low-privilege operating-system account or container.
+Enable it after approving a trusted client with the Owner password. Commands
+run with the permissions and credentials of the DevSpace operating-system user.
 
 ## Widgets
 

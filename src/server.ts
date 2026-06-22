@@ -200,7 +200,7 @@ function serverInstructions(config: ServerConfig, toolNames: ToolNames): string 
       ? " After creating, editing, or overwriting files, call show_changes once after the related file changes are complete so the user can see the aggregate diff."
       : "";
   const shell = config.shellEnabled
-    ? ` Use ${toolNames.shell} for tests, builds, git inspection, package scripts, and commands that are better executed by the shell. Do not create or modify files with ${toolNames.shell}; avoid shell redirection, heredocs, tee, sed -i, perl -i, node/python/ruby scripts, or any command whose purpose is to write project files.`
+    ? ` Use ${toolNames.shell} for complete local development workflows, including builds, tests, package managers, Git, GitHub CLI, code generation, scripts, and file operations. Dedicated file tools remain available when they are more convenient, but shell commands may read and modify files. Commands run with the permissions of the local DevSpace operating-system user.`
     : " Shell execution is disabled on this server.";
 
   return `Use DevSpace as a local coding workspace. Call ${toolNames.openWorkspace} once per project folder or worktree to obtain a workspaceId. Reuse that same workspaceId for all later file, search, edit, write, and show-changes tools in that folder; do not call ${toolNames.openWorkspace} again unless switching folders/worktrees, changing checkout/worktree mode, the workspaceId is rejected as unknown, or the user explicitly asks to reopen. ${agentsMd}${skills}${inspection}Prefer ${toolNames.edit} for targeted modifications and ${toolNames.write} only for new files or complete rewrites.${shell}${showChanges}`;
@@ -1182,17 +1182,15 @@ export function createMcpServer(
       {
         title: config.toolNaming === "short" ? "Bash" : "Run shell",
         description: config.minimalTools
-          ? `Run a shell command inside an open workspace. Use only for tests, builds, git inspection, package scripts, search, file discovery, and directory inspection. In minimal tool mode, ${toolNames.grep}, ${toolNames.glob}, and ${toolNames.ls} are disabled; use command-line tools such as grep, rg, find, ls, and tree for those read-only inspection actions. Do not use ${toolNames.shell} to create or modify files. Do not use shell redirection, heredocs, tee, sed -i, perl -i, node/python/ruby scripts, or generated scripts to write project files; use ${toolNames.edit} for targeted changes and ${toolNames.write} for new files or full rewrites. Prefer ${toolNames.read} for direct file reads. Call open_workspace first and pass workspaceId. This is powerful local execution and should only be exposed behind strong authentication.`
-          : `Run a shell command inside an open workspace. Use only for tests, builds, git inspection, package scripts, and commands that are better executed by the shell. Do not use ${toolNames.shell} to create or modify files. Do not use shell redirection, heredocs, tee, sed -i, perl -i, node/python/ruby scripts, or generated scripts to write project files; use ${toolNames.edit} for targeted changes and ${toolNames.write} for new files or full rewrites. Prefer ${toolNames.read}, ${toolNames.grep}, ${toolNames.glob}, and ${toolNames.ls} for file inspection. Call open_workspace first and pass workspaceId. This is powerful local execution and should only be exposed behind strong authentication.`,
+          ? `Run a Bash command inside an open workspace with the permissions of the local DevSpace operating-system user. Use it for complete development workflows: builds, tests, package managers, Git, GitHub CLI, code generation, scripts, search, file discovery, and file operations. In minimal tool mode, ${toolNames.grep}, ${toolNames.glob}, and ${toolNames.ls} are disabled, so use command-line tools such as grep, rg, find, ls, and tree. Dedicated ${toolNames.read}, ${toolNames.edit}, and ${toolNames.write} tools remain available when convenient. Call open_workspace first and pass workspaceId.`
+          : `Run a Bash command inside an open workspace with the permissions of the local DevSpace operating-system user. Use it for complete development workflows: builds, tests, package managers, Git, GitHub CLI, code generation, scripts, and file operations. Dedicated ${toolNames.read}, ${toolNames.edit}, ${toolNames.write}, ${toolNames.grep}, ${toolNames.glob}, and ${toolNames.ls} tools remain available when convenient. Call open_workspace first and pass workspaceId.`,
         inputSchema: {
           workspaceId: z
             .string()
             .describe("Workspace identifier returned by open_workspace."),
           command: z
             .string()
-            .describe(
-              `Shell command to run. Must not create or modify project files; use ${toolNames.edit} or ${toolNames.write} for file changes.`,
-            ),
+            .describe("Bash command to execute as the local DevSpace operating-system user."),
           workingDirectory: z
             .string()
             .optional()
@@ -1202,9 +1200,9 @@ export function createMcpServer(
           timeout: z
             .number()
             .positive()
-            .max(300)
+            .max(3600)
             .optional()
-            .describe("Timeout in seconds. Defaults to 30, max 300."),
+            .describe("Timeout in seconds. Defaults to 300, max 3600."),
         },
         outputSchema: resultOutputSchema(),
         ...toolWidgetDescriptorMeta(config, "shell"),

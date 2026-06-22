@@ -87,18 +87,20 @@ endpoint, but the tunnel URL should not be treated as a secret.
 
 ## Shell Access
 
-The shell tool is disabled by default. Enable it explicitly with:
+The distributable configuration keeps the shell tool disabled until the owner
+explicitly enables it:
 
 ```bash
 DEVSPACE_SHELL_ENABLED=1 npx @waishnav/devspace serve
 ```
 
-Filesystem path containment applies to DevSpace file tools. Shell commands run
-as local commands and can do what your user account can do, including accessing
-paths outside configured roots. The filesystem allowlist is not a shell
-sandbox. If shell access is required, use a dedicated low-privilege OS account,
-container, or virtual machine in addition to trusting the MCP client and
-protecting the Owner password.
+After OAuth approval, shell commands run as local commands and can do what the
+DevSpace operating-system user can do, including builds, tests, Git, GitHub CLI,
+package management, scripts, file mutation, and access outside configured file
+tool roots. The filesystem allowlist applies to structured file tools; it is not
+a shell sandbox. The primary trust decision is approving the MCP client with
+the Owner password. Disconnect the app or rotate the Owner password if that
+trust should be revoked.
 
 ## Worktrees
 

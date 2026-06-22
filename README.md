@@ -142,9 +142,11 @@ capabilities inside an opened workspace, including shell execution when it is
 explicitly enabled. Treat a connected client like a trusted coding partner
 with access to your machine.
 
-Shell execution is disabled by default. Enable it only when needed with
-`DEVSPACE_SHELL_ENABLED=1`, preferably while DevSpace runs under a dedicated
-low-privilege operating-system account or container.
+After approving a trusted client with the Owner password, enable complete local
+development workflows with `DEVSPACE_SHELL_ENABLED=1`. The shell supports
+builds, tests, Git, GitHub CLI, package managers, code generation, scripts, and
+ordinary file operations with the permissions of the DevSpace operating-system
+user.
 
 For a normal ChatGPT coding session:
 
