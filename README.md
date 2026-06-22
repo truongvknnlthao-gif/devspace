@@ -127,7 +127,7 @@ DevSpace gives ChatGPT tools to:
 
 - read, write, and edit files inside the opened workspace
 - search code and inspect directories
-- run shell commands for tests, builds, git, and package scripts
+- optionally run shell commands for tests, builds, git, and package scripts
 - use isolated Git worktrees for parallel coding sessions
 - follow project instructions from `AGENTS.md` and `CLAUDE.md`
 - discover local agent skills from your skill folders
@@ -138,8 +138,13 @@ DevSpace gives ChatGPT tools to:
 DevSpace is remote access to selected local folders.
 
 You decide which roots are allowed. The MCP client still has powerful local
-capabilities inside an opened workspace, including shell execution. Treat a
-connected client like a trusted coding partner with access to your machine.
+capabilities inside an opened workspace, including shell execution when it is
+explicitly enabled. Treat a connected client like a trusted coding partner
+with access to your machine.
+
+Shell execution is disabled by default. Enable it only when needed with
+`DEVSPACE_SHELL_ENABLED=1`, preferably while DevSpace runs under a dedicated
+low-privilege operating-system account or container.
 
 For a normal ChatGPT coding session:
 

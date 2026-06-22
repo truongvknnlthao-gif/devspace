@@ -199,8 +199,11 @@ function serverInstructions(config: ServerConfig, toolNames: ToolNames): string 
     config.widgets === "changes"
       ? " After creating, editing, or overwriting files, call show_changes once after the related file changes are complete so the user can see the aggregate diff."
       : "";
+  const shell = config.shellEnabled
+    ? ` Use ${toolNames.shell} for tests, builds, git inspection, package scripts, and commands that are better executed by the shell. Do not create or modify files with ${toolNames.shell}; avoid shell redirection, heredocs, tee, sed -i, perl -i, node/python/ruby scripts, or any command whose purpose is to write project files.`
+    : " Shell execution is disabled on this server.";
 
-  return `Use DevSpace as a local coding workspace. Call ${toolNames.openWorkspace} once per project folder or worktree to obtain a workspaceId. Reuse that same workspaceId for all later file, search, edit, write, show-changes, and shell tools in that folder; do not call ${toolNames.openWorkspace} again unless switching folders/worktrees, changing checkout/worktree mode, the workspaceId is rejected as unknown, or the user explicitly asks to reopen. ${agentsMd}${skills}${inspection}Prefer ${toolNames.edit} for targeted modifications, ${toolNames.write} only for new files or complete rewrites, and ${toolNames.shell} for tests, builds, git inspection, package scripts, and commands that are better executed by the shell. Do not create or modify files with ${toolNames.shell}; avoid shell redirection, heredocs, tee, sed -i, perl -i, node/python/ruby scripts, or any command whose purpose is to write project files.${showChanges}`;
+  return `Use DevSpace as a local coding workspace. Call ${toolNames.openWorkspace} once per project folder or worktree to obtain a workspaceId. Reuse that same workspaceId for all later file, search, edit, write, and show-changes tools in that folder; do not call ${toolNames.openWorkspace} again unless switching folders/worktrees, changing checkout/worktree mode, the workspaceId is rejected as unknown, or the user explicitly asks to reopen. ${agentsMd}${skills}${inspection}Prefer ${toolNames.edit} for targeted modifications and ${toolNames.write} only for new files or complete rewrites.${shell}${showChanges}`;
 }
 function resultOutputSchema(extra: z.ZodRawShape = {}): z.ZodRawShape {
   return {
@@ -452,7 +455,7 @@ async function assertWorkspaceAppAssets(): Promise<void> {
   }
 }
 
-function createMcpServer(
+export function createMcpServer(
   config: ServerConfig,
   workspaces: WorkspaceRegistry,
   reviewCheckpoints: ReturnType<typeof createReviewCheckpointManager>,
@@ -464,7 +467,7 @@ function createMcpServer(
       title: "DevSpace",
       version: "0.1.0",
       description:
-        "Secure local coding workspace for MCP clients. Provides workspace-scoped file, search, edit, write, and shell tools.",
+        `Secure local coding workspace for MCP clients. Provides workspace-scoped file, search, edit, and write tools${config.shellEnabled ? ", plus explicitly enabled shell execution" : ""}.`,
     },
     {
       instructions: serverInstructions(config, toolNames),
@@ -1172,95 +1175,97 @@ function createMcpServer(
     );
   }
 
-  registerAppTool(
-    server,
-    toolNames.shell,
-    {
-      title: config.toolNaming === "short" ? "Bash" : "Run shell",
-      description: config.minimalTools
-        ? `Run a shell command inside an open workspace. Use only for tests, builds, git inspection, package scripts, search, file discovery, and directory inspection. In minimal tool mode, ${toolNames.grep}, ${toolNames.glob}, and ${toolNames.ls} are disabled; use command-line tools such as grep, rg, find, ls, and tree for those read-only inspection actions. Do not use ${toolNames.shell} to create or modify files. Do not use shell redirection, heredocs, tee, sed -i, perl -i, node/python/ruby scripts, or generated scripts to write project files; use ${toolNames.edit} for targeted changes and ${toolNames.write} for new files or full rewrites. Prefer ${toolNames.read} for direct file reads. Call open_workspace first and pass workspaceId. This is powerful local execution and should only be exposed behind strong authentication.`
-        : `Run a shell command inside an open workspace. Use only for tests, builds, git inspection, package scripts, and commands that are better executed by the shell. Do not use ${toolNames.shell} to create or modify files. Do not use shell redirection, heredocs, tee, sed -i, perl -i, node/python/ruby scripts, or generated scripts to write project files; use ${toolNames.edit} for targeted changes and ${toolNames.write} for new files or full rewrites. Prefer ${toolNames.read}, ${toolNames.grep}, ${toolNames.glob}, and ${toolNames.ls} for file inspection. Call open_workspace first and pass workspaceId. This is powerful local execution and should only be exposed behind strong authentication.`,
-      inputSchema: {
-        workspaceId: z
-          .string()
-          .describe("Workspace identifier returned by open_workspace."),
-        command: z
-          .string()
-          .describe(
-            `Shell command to run. Must not create or modify project files; use ${toolNames.edit} or ${toolNames.write} for file changes.`,
-          ),
-        workingDirectory: z
-          .string()
-          .optional()
-          .describe(
-            "Optional working directory relative to the workspace root. Defaults to the workspace root.",
-          ),
-        timeout: z
-          .number()
-          .positive()
-          .max(300)
-          .optional()
-          .describe("Timeout in seconds. Defaults to 30, max 300."),
+  if (config.shellEnabled) {
+    registerAppTool(
+      server,
+      toolNames.shell,
+      {
+        title: config.toolNaming === "short" ? "Bash" : "Run shell",
+        description: config.minimalTools
+          ? `Run a shell command inside an open workspace. Use only for tests, builds, git inspection, package scripts, search, file discovery, and directory inspection. In minimal tool mode, ${toolNames.grep}, ${toolNames.glob}, and ${toolNames.ls} are disabled; use command-line tools such as grep, rg, find, ls, and tree for those read-only inspection actions. Do not use ${toolNames.shell} to create or modify files. Do not use shell redirection, heredocs, tee, sed -i, perl -i, node/python/ruby scripts, or generated scripts to write project files; use ${toolNames.edit} for targeted changes and ${toolNames.write} for new files or full rewrites. Prefer ${toolNames.read} for direct file reads. Call open_workspace first and pass workspaceId. This is powerful local execution and should only be exposed behind strong authentication.`
+          : `Run a shell command inside an open workspace. Use only for tests, builds, git inspection, package scripts, and commands that are better executed by the shell. Do not use ${toolNames.shell} to create or modify files. Do not use shell redirection, heredocs, tee, sed -i, perl -i, node/python/ruby scripts, or generated scripts to write project files; use ${toolNames.edit} for targeted changes and ${toolNames.write} for new files or full rewrites. Prefer ${toolNames.read}, ${toolNames.grep}, ${toolNames.glob}, and ${toolNames.ls} for file inspection. Call open_workspace first and pass workspaceId. This is powerful local execution and should only be exposed behind strong authentication.`,
+        inputSchema: {
+          workspaceId: z
+            .string()
+            .describe("Workspace identifier returned by open_workspace."),
+          command: z
+            .string()
+            .describe(
+              `Shell command to run. Must not create or modify project files; use ${toolNames.edit} or ${toolNames.write} for file changes.`,
+            ),
+          workingDirectory: z
+            .string()
+            .optional()
+            .describe(
+              "Optional working directory relative to the workspace root. Defaults to the workspace root.",
+            ),
+          timeout: z
+            .number()
+            .positive()
+            .max(300)
+            .optional()
+            .describe("Timeout in seconds. Defaults to 30, max 300."),
+        },
+        outputSchema: resultOutputSchema(),
+        ...toolWidgetDescriptorMeta(config, "shell"),
+        annotations: SHELL_TOOL_ANNOTATIONS,
       },
-      outputSchema: resultOutputSchema(),
-      ...toolWidgetDescriptorMeta(config, "shell"),
-      annotations: SHELL_TOOL_ANNOTATIONS,
-    },
-    async ({ workspaceId, workingDirectory, ...input }) => {
-      const startedAt = performance.now();
-      const workspace = workspaces.getWorkspace(workspaceId);
-      const cwd = workspaces.resolveWorkingDirectory(
-        workspace,
-        workingDirectory,
-      );
-      const response = await runShellTool(input, {
-        cwd,
-        root: workspace.root,
-      });
+      async ({ workspaceId, workingDirectory, ...input }) => {
+        const startedAt = performance.now();
+        const workspace = workspaces.getWorkspace(workspaceId);
+        const cwd = workspaces.resolveWorkingDirectory(
+          workspace,
+          workingDirectory,
+        );
+        const response = await runShellTool(input, {
+          cwd,
+          root: workspace.root,
+        });
 
-      if (response.isError) {
-        logFailedToolResponse(config, {
+        if (response.isError) {
+          logFailedToolResponse(config, {
+            tool: toolNames.shell,
+            workspaceId,
+            workingDirectory: workingDirectory ?? ".",
+            command: input.command,
+            commandLength: input.command.length,
+          }, response.content, startedAt);
+          return response;
+        }
+
+        const summary = {
+          command: input.command,
+          workingDirectory: workingDirectory ?? ".",
+          ...textSummary(response.content),
+        };
+        logToolCall(config, {
           tool: toolNames.shell,
           workspaceId,
           workingDirectory: workingDirectory ?? ".",
           command: input.command,
           commandLength: input.command.length,
-        }, response.content, startedAt);
-        return response;
-      }
+          success: true,
+          durationMs: Math.round(performance.now() - startedAt),
+        });
 
-      const summary = {
-        command: input.command,
-        workingDirectory: workingDirectory ?? ".",
-        ...textSummary(response.content),
-      };
-      logToolCall(config, {
-        tool: toolNames.shell,
-        workspaceId,
-        workingDirectory: workingDirectory ?? ".",
-        command: input.command,
-        commandLength: input.command.length,
-        success: true,
-        durationMs: Math.round(performance.now() - startedAt),
-      });
-
-      return {
-        ...response,
-        _meta: {
-          tool: toolNames.shell,
-          card: {
-            workspaceId,
-            path: workingDirectory,
-            summary,
-            payload: { content: response.content },
+        return {
+          ...response,
+          _meta: {
+            tool: toolNames.shell,
+            card: {
+              workspaceId,
+              path: workingDirectory,
+              summary,
+              payload: { content: response.content },
+            },
           },
-        },
-        structuredContent: {
-          result: contentText(response.content),
-        },
-      };
-    },
-  );
+          structuredContent: {
+            result: contentText(response.content),
+          },
+        };
+      },
+    );
+  }
 
   return server;
 }
@@ -1273,6 +1278,7 @@ export function createServer(config = loadConfig()): RunningServer {
     host: config.host,
     ...(allowedHosts ? { allowedHosts } : {}),
   });
+  app.disable("x-powered-by");
   const transports = new Map<string, Transport>();
   const mcpUrl = new URL("/mcp", config.publicBaseUrl);
   const resourceServerUrl = resourceUrlFromServerUrl(mcpUrl);
@@ -1291,6 +1297,9 @@ export function createServer(config = loadConfig()): RunningServer {
   }
 
   app.use((req, res, next) => {
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Referrer-Policy", "no-referrer");
+    res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
     const requestId = randomUUID();
     const startedAt = performance.now();
     res.locals.requestId = requestId;
@@ -1459,6 +1468,7 @@ if (await isMainModule()) {
     console.log(`logging: ${config.logging.level} ${config.logging.format}`);
     console.log(`request logging: ${config.logging.requests ? "enabled" : "disabled"}`);
     console.log(`asset logging: ${config.logging.assets ? "enabled" : "disabled"}`);
+    console.log(`shell execution: ${config.shellEnabled ? "enabled" : "disabled"}`);
     console.log(`trust proxy: ${config.logging.trustProxy ? "enabled" : "disabled"}`);
   });
 

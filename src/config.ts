@@ -9,6 +9,8 @@ export type ToolNamingMode = "legacy" | "short";
 export type WidgetMode = "off" | "changes" | "full";
 const DEFAULT_OAUTH_ACCESS_TOKEN_TTL_SECONDS = 60 * 60;
 const DEFAULT_OAUTH_REFRESH_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60;
+const DEFAULT_OAUTH_AUTHORIZATION_MAX_FAILURES = 5;
+const DEFAULT_OAUTH_AUTHORIZATION_FAILURE_WINDOW_SECONDS = 15 * 60;
 
 export interface ServerConfig {
   host: string;
@@ -18,6 +20,7 @@ export interface ServerConfig {
   allowedHosts: string[];
   publicBaseUrl: string;
   minimalTools: boolean;
+  shellEnabled: boolean;
   toolNaming: ToolNamingMode;
   widgets: WidgetMode;
   stateDir: string;
@@ -183,6 +186,16 @@ function parseOAuthConfig(env: NodeJS.ProcessEnv, ownerToken: string | undefined
       DEFAULT_OAUTH_REFRESH_TOKEN_TTL_SECONDS,
       "DEVSPACE_OAUTH_REFRESH_TOKEN_TTL_SECONDS",
     ),
+    authorizationMaxFailures: parsePositiveInteger(
+      env.DEVSPACE_OAUTH_AUTHORIZATION_MAX_FAILURES,
+      DEFAULT_OAUTH_AUTHORIZATION_MAX_FAILURES,
+      "DEVSPACE_OAUTH_AUTHORIZATION_MAX_FAILURES",
+    ),
+    authorizationFailureWindowSeconds: parsePositiveInteger(
+      env.DEVSPACE_OAUTH_AUTHORIZATION_FAILURE_WINDOW_SECONDS,
+      DEFAULT_OAUTH_AUTHORIZATION_FAILURE_WINDOW_SECONDS,
+      "DEVSPACE_OAUTH_AUTHORIZATION_FAILURE_WINDOW_SECONDS",
+    ),
     scopes: parseStringList(env.DEVSPACE_OAUTH_SCOPES, ["devspace"]),
     allowedRedirectHosts: parseStringList(env.DEVSPACE_OAUTH_ALLOWED_REDIRECT_HOSTS, [
       "chatgpt.com",
@@ -219,6 +232,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     new URL(publicBaseUrl).hostname,
     ...(files.config.allowedHosts ?? []),
   ];
+  const shellEnabled = parseBoolean(env.DEVSPACE_SHELL_ENABLED);
+  const configuredMinimalTools = parseMinimalTools(env);
+  const minimalTools = shellEnabled ? configuredMinimalTools : false;
 
   return {
     host,
@@ -227,7 +243,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     allowedRoots: parseAllowedRoots(env.DEVSPACE_ALLOWED_ROOTS ?? files.config.allowedRoots),
     allowedHosts: parseAllowedHosts(env.DEVSPACE_ALLOWED_HOSTS, derivedAllowedHosts),
     publicBaseUrl,
-    minimalTools: parseMinimalTools(env),
+    minimalTools,
+    shellEnabled,
     toolNaming: parseToolNaming(env.DEVSPACE_TOOL_NAMING),
     widgets: parseWidgetMode(env.DEVSPACE_WIDGETS),
     stateDir: resolve(expandHomePath(env.DEVSPACE_STATE_DIR ?? files.config.stateDir ?? defaultStateDir())),
@@ -239,12 +256,22 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
   };
 }
 
-function parsePublicBaseUrl(value: string): string {
+export function parsePublicBaseUrl(value: string): string {
   const parsed = new URL(value);
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error("DEVSPACE_PUBLIC_BASE_URL must use http or https.");
+  }
+  if (parsed.protocol === "http:" && !isLoopbackHostname(parsed.hostname)) {
+    throw new Error("DEVSPACE_PUBLIC_BASE_URL must use https unless it points to loopback.");
+  }
   parsed.hash = "";
   parsed.search = "";
   parsed.pathname = parsed.pathname.replace(/\/+$/, "");
   return parsed.toString().replace(/\/$/, "");
+}
+
+function isLoopbackHostname(hostname: string): boolean {
+  return ["localhost", "127.0.0.1", "[::1]", "::1"].includes(hostname);
 }
 
 function localPublicBaseUrl(host: string, port: number): string {

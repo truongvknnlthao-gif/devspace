@@ -4,7 +4,13 @@ import { promisify } from "node:util";
 import { mkdir, realpath, rm, stat } from "node:fs/promises";
 import { basename, join, relative, resolve } from "node:path";
 import type { ServerConfig } from "./config.js";
-import { assertAllowedPath, isPathInsideRoot } from "./roots.js";
+import {
+  assertAllowedPath,
+  expandHomePath,
+  isPathInsideRoot,
+  resolveAllowedExistingPath,
+  resolveAllowedProspectivePath,
+} from "./roots.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -38,7 +44,12 @@ export async function createManagedWorktree(input: {
   baseRef?: string;
   config: ServerConfig;
 }): Promise<ManagedWorktree> {
-  const sourcePath = assertAllowedPath(input.sourcePath, input.config.allowedRoots);
+  const sourcePath = resolve(expandHomePath(input.sourcePath));
+  await resolveAllowedExistingPath(
+    sourcePath,
+    process.cwd(),
+    input.config.allowedRoots,
+  );
 
   try {
     const sourceStats = await stat(sourcePath);
@@ -66,7 +77,11 @@ export async function createManagedWorktree(input: {
   });
 
   await mkdir(input.config.worktreeRoot, { recursive: true });
-  assertAllowedPath(worktreePath, [input.config.worktreeRoot]);
+  await resolveAllowedProspectivePath(
+    worktreePath,
+    process.cwd(),
+    [input.config.worktreeRoot],
+  );
 
   try {
     await git(["worktree", "add", "--detach", worktreePath, baseSha], sourceRoot);

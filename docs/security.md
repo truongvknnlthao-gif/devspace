@@ -42,12 +42,17 @@ reach.
 
 When an MCP client connects, DevSpace shows an approval page. Enter the Owner
 password only when you intentionally want that client to access this server.
+Non-loopback OAuth redirect URLs must use HTTPS and match the configured
+redirect-host allowlist exactly.
 
 For env-driven deployments, set a long random value:
 
 ```bash
 DEVSPACE_OAUTH_OWNER_TOKEN="$(openssl rand -base64 32)"
 ```
+
+Failed Owner password attempts are rate-limited in memory. The default is five
+failures per remote address in a 15-minute window.
 
 ## Public URL And Host Allowlist
 
@@ -61,6 +66,9 @@ https://your-tunnel-host.example.com
 ```
 
 Do not include `/mcp` in `DEVSPACE_PUBLIC_BASE_URL`.
+
+Public URLs must use HTTPS. Plain HTTP is accepted only for loopback addresses
+such as `127.0.0.1` during local setup.
 
 By default, DevSpace derives allowed Host headers from the local host and public
 URL. Use `DEVSPACE_ALLOWED_HOSTS=*` only for intentional local debugging.
@@ -79,12 +87,18 @@ endpoint, but the tunnel URL should not be treated as a secret.
 
 ## Shell Access
 
-The shell tool is powerful by design. It is meant for tests, builds, git, and
-package scripts.
+The shell tool is disabled by default. Enable it explicitly with:
+
+```bash
+DEVSPACE_SHELL_ENABLED=1 npx @waishnav/devspace serve
+```
 
 Filesystem path containment applies to DevSpace file tools. Shell commands run
-as local commands and can do what your user account can do. This is why the MCP
-client must be trusted and the Owner password must stay private.
+as local commands and can do what your user account can do, including accessing
+paths outside configured roots. The filesystem allowlist is not a shell
+sandbox. If shell access is required, use a dedicated low-privilege OS account,
+container, or virtual machine in addition to trusting the MCP client and
+protecting the Owner password.
 
 ## Worktrees
 

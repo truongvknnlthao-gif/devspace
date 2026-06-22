@@ -16,6 +16,8 @@ export interface OAuthConfig {
   ownerToken: string;
   accessTokenTtlSeconds: number;
   refreshTokenTtlSeconds: number;
+  authorizationMaxFailures: number;
+  authorizationFailureWindowSeconds: number;
   scopes: string[];
   allowedRedirectHosts: string[];
 }
@@ -27,6 +29,52 @@ interface AuthorizationCodeRecord {
 }
 
 const CODE_TTL_MS = 5 * 60 * 1000;
+
+interface AuthorizationFailureRecord {
+  failures: number;
+  resetAtMs: number;
+}
+
+export class AuthorizationFailureLimiter {
+  private readonly records = new Map<string, AuthorizationFailureRecord>();
+
+  constructor(
+    private readonly maxFailures: number,
+    private readonly windowMs: number,
+    private readonly now: () => number = Date.now,
+  ) {}
+
+  retryAfterSeconds(key: string): number {
+    const record = this.currentRecord(key);
+    if (!record || record.failures < this.maxFailures) return 0;
+    return Math.max(1, Math.ceil((record.resetAtMs - this.now()) / 1000));
+  }
+
+  recordFailure(key: string): void {
+    const record = this.currentRecord(key);
+    if (record) {
+      record.failures++;
+      return;
+    }
+
+    this.records.set(key, {
+      failures: 1,
+      resetAtMs: this.now() + this.windowMs,
+    });
+  }
+
+  reset(key: string): void {
+    this.records.delete(key);
+  }
+
+  private currentRecord(key: string): AuthorizationFailureRecord | undefined {
+    const record = this.records.get(key);
+    if (!record) return undefined;
+    if (record.resetAtMs > this.now()) return record;
+    this.records.delete(key);
+    return undefined;
+  }
+}
 
 function randomToken(): string {
   return randomBytes(32).toString("base64url");
@@ -116,6 +164,7 @@ export class SingleUserOAuthProvider implements OAuthServerProvider {
   private readonly codes = new Map<string, AuthorizationCodeRecord>();
   private readonly oauthStore: SqliteOAuthStore;
   private readonly resourceServerUrl: URL;
+  private readonly authorizationFailureLimiter: AuthorizationFailureLimiter;
 
   constructor(
     private readonly config: OAuthConfig,
@@ -125,6 +174,10 @@ export class SingleUserOAuthProvider implements OAuthServerProvider {
     this.resourceServerUrl = resourceUrlFromServerUrl(resourceServerUrl);
     this.oauthStore = new SqliteOAuthStore(stateDir);
     this.clientsStore = new SqliteOAuthClientsStore(this.oauthStore, config.allowedRedirectHosts);
+    this.authorizationFailureLimiter = new AuthorizationFailureLimiter(
+      config.authorizationMaxFailures,
+      config.authorizationFailureWindowSeconds * 1000,
+    );
   }
 
   async authorize(
@@ -140,7 +193,8 @@ export class SingleUserOAuthProvider implements OAuthServerProvider {
     }
 
     if (res.req.method !== "POST") {
-      res.status(200).setHeader("Content-Type", "text/html; charset=utf-8");
+      setAuthorizationResponseHeaders(res);
+      res.status(200);
       res.send(
         formHtml({
           clientName: client.client_name ?? client.client_id,
@@ -152,9 +206,29 @@ export class SingleUserOAuthProvider implements OAuthServerProvider {
       return;
     }
 
+    const attemptKey = res.req.socket.remoteAddress ?? "unknown";
+    const retryAfterSeconds = this.authorizationFailureLimiter.retryAfterSeconds(attemptKey);
+    if (retryAfterSeconds > 0) {
+      setAuthorizationResponseHeaders(res);
+      res.setHeader("Retry-After", String(retryAfterSeconds));
+      res.status(429);
+      res.send(
+        formHtml({
+          error: "Too many failed authorization attempts. Try again later.",
+          clientName: client.client_name ?? client.client_id,
+          scopes: params.scopes ?? this.config.scopes,
+          resource: params.resource,
+          fields: authorizationFormFields(client, params),
+        }),
+      );
+      return;
+    }
+
     const providedToken = String(res.req.body?.owner_token ?? "");
     if (!safeEquals(providedToken, this.config.ownerToken)) {
-      res.status(401).setHeader("Content-Type", "text/html; charset=utf-8");
+      this.authorizationFailureLimiter.recordFailure(attemptKey);
+      setAuthorizationResponseHeaders(res);
+      res.status(401);
       res.send(
         formHtml({
           error: "The Owner password was not accepted.",
@@ -166,6 +240,7 @@ export class SingleUserOAuthProvider implements OAuthServerProvider {
       );
       return;
     }
+    this.authorizationFailureLimiter.reset(attemptKey);
 
     const code = `code-${randomUUID()}`;
     this.codes.set(code, {
@@ -314,6 +389,21 @@ export class SingleUserOAuthProvider implements OAuthServerProvider {
       scope: scopes.join(" "),
     };
   }
+}
+
+function setAuthorizationResponseHeaders(res: Response): void {
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("Content-Security-Policy", [
+    "default-src 'none'",
+    "style-src 'unsafe-inline'",
+    "form-action 'self'",
+    "base-uri 'none'",
+    "frame-ancestors 'none'",
+  ].join("; "));
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Referrer-Policy", "no-referrer");
 }
 
 function authorizationFormFields(
