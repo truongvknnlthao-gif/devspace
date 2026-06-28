@@ -188,6 +188,7 @@ async function serve(): Promise<void> {
       console.warn("warning: Host header allowlist is disabled because DEVSPACE_ALLOWED_HOSTS=*");
     }
     console.log("auth: Owner password approval required");
+    console.log(`shell execution: ${config.shellEnabled ? "enabled" : "disabled"}`);
     console.log(`logging: ${config.logging.level} ${config.logging.format}`);
   });
 
@@ -219,6 +220,7 @@ async function runDoctor(): Promise<void> {
     console.log(`Public MCP URL: ${new URL("/mcp", config.publicBaseUrl).toString()}`);
     console.log(`Allowed roots: ${config.allowedRoots.join(", ")}`);
     console.log(`Allowed hosts: ${config.allowedHosts.join(", ")}`);
+    console.log(`Shell execution: ${config.shellEnabled ? "enabled" : "disabled"}`);
   } catch (error) {
     console.log(`Config status: ${error instanceof Error ? error.message : String(error)}`);
   }
@@ -281,6 +283,12 @@ function normalizeOptionalPublicBaseUrl(value: string): string | null {
 function normalizePublicBaseUrl(value: string): string {
   const trimmed = value.trim();
   const parsed = new URL(trimmed);
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error("Public base URL must use http or https.");
+  }
+  if (parsed.protocol === "http:" && !isLoopbackHostname(parsed.hostname)) {
+    throw new Error("Public base URL must use https unless it points to loopback.");
+  }
   parsed.hash = "";
   parsed.search = "";
   parsed.pathname = parsed.pathname.replace(/\/+$/, "");
@@ -319,12 +327,20 @@ function validateRequiredPublicBaseUrl(value: string | undefined): string | unde
 function validatePublicBaseUrl(value: string): string | undefined {
   try {
     const parsed = new URL(value);
-    return parsed.protocol === "http:" || parsed.protocol === "https:"
-      ? undefined
-      : "Use an http or https URL.";
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return "Use an http or https URL.";
+    }
+    if (parsed.protocol === "http:" && !isLoopbackHostname(parsed.hostname)) {
+      return "Use https for public URLs. Plain http is only allowed for loopback.";
+    }
+    return undefined;
   } catch {
     return "Enter a valid URL, for example https://your-tunnel-host.example.com.";
   }
+}
+
+function isLoopbackHostname(hostname: string): boolean {
+  return ["localhost", "127.0.0.1", "[::1]", "::1"].includes(hostname);
 }
 
 function assertSupportedNode(): void {

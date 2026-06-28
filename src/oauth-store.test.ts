@@ -5,7 +5,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { InvalidGrantError, InvalidTokenError } from "@modelcontextprotocol/sdk/server/auth/errors.js";
 import { databasePath, openDatabase } from "./db/client.js";
-import { SingleUserOAuthProvider } from "./oauth-provider.js";
+import {
+  AuthorizationFailureLimiter,
+  SingleUserOAuthProvider,
+  authorizationContentSecurityPolicy,
+} from "./oauth-provider.js";
 import { SqliteOAuthClientsStore, SqliteOAuthStore } from "./oauth-store.js";
 
 const root = await mkdtemp(join(tmpdir(), "devspace-oauth-test-"));
@@ -13,6 +17,8 @@ const oauthConfig = {
   ownerToken: "test-owner-token-that-is-long-enough",
   accessTokenTtlSeconds: 3600,
   refreshTokenTtlSeconds: 2592000,
+  authorizationMaxFailures: 5,
+  authorizationFailureWindowSeconds: 900,
   scopes: ["devspace"],
   allowedRedirectHosts: ["chatgpt.com"],
 };
@@ -20,13 +26,66 @@ const mcpUrl = new URL("https://agent.example.com/mcp");
 const redirectUri = "https://chatgpt.com/connector_platform_oauth_redirect";
 
 try {
+  testAuthorizationFailureLimiter();
+  testAuthorizationContentSecurityPolicy();
   await testDatabaseConfiguration(join(root, "database-configuration"));
+  testRedirectUriSecurity(join(root, "redirect-security"));
   testPersistenceAndTokenHashing(join(root, "persistence"));
   testExpiredTokenCleanup(join(root, "expiration"));
   testTransactionalTokenRotation(join(root, "rotation"));
   await testProviderRestartRotationAndRevocation(join(root, "provider"));
 } finally {
   await rm(root, { recursive: true, force: true });
+}
+
+function testRedirectUriSecurity(stateDir: string): void {
+  const store = new SqliteOAuthStore(stateDir);
+  const clients = new SqliteOAuthClientsStore(store, oauthConfig.allowedRedirectHosts);
+
+  try {
+    assert.throws(
+      () => clients.registerClient({
+        redirect_uris: ["http://chatgpt.com/connector_platform_oauth_redirect"],
+      }),
+      /redirect_uri is not allowed/,
+    );
+    assert.doesNotThrow(() => clients.registerClient({
+      redirect_uris: ["http://127.0.0.1:3456/callback"],
+    }));
+  } finally {
+    store.close();
+  }
+}
+
+function testAuthorizationFailureLimiter(): void {
+  let now = 1_000;
+  const limiter = new AuthorizationFailureLimiter(2, 10_000, () => now);
+
+  assert.equal(limiter.retryAfterSeconds("client"), 0);
+  limiter.recordFailure("client");
+  assert.equal(limiter.retryAfterSeconds("client"), 0);
+  limiter.recordFailure("client");
+  assert.equal(limiter.retryAfterSeconds("client"), 10);
+  limiter.reset("client");
+  assert.equal(limiter.retryAfterSeconds("client"), 0);
+
+  limiter.recordFailure("client");
+  limiter.recordFailure("client");
+  now += 10_001;
+  assert.equal(limiter.retryAfterSeconds("client"), 0);
+}
+
+function testAuthorizationContentSecurityPolicy(): void {
+  assert.equal(
+    authorizationContentSecurityPolicy(
+      "https://chatgpt.com/connector/oauth/callback-id?code=ignored",
+    ),
+    "default-src 'none'; style-src 'unsafe-inline'; form-action 'self' https://chatgpt.com; base-uri 'none'; frame-ancestors 'none'",
+  );
+  assert.equal(
+    authorizationContentSecurityPolicy("http://127.0.0.1:3456/callback"),
+    "default-src 'none'; style-src 'unsafe-inline'; form-action 'self' http://127.0.0.1:3456; base-uri 'none'; frame-ancestors 'none'",
+  );
 }
 
 async function testDatabaseConfiguration(stateDir: string): Promise<void> {

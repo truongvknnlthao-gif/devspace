@@ -38,6 +38,7 @@ npx @waishnav/devspace config set publicBaseUrl https://devspace.example.com
 | `DEVSPACE_OAUTH_OWNER_TOKEN` | Owner password for OAuth approval. Must be at least 16 characters. |
 | `DEVSPACE_WORKTREE_ROOT` | Directory for managed Git worktrees. Defaults to `~/.devspace/worktrees`. |
 | `DEVSPACE_STATE_DIR` | Directory for SQLite state. Defaults to `~/.local/share/devspace`. |
+| `DEVSPACE_SHELL_ENABLED` | Set to `1` to expose complete local command-line development workflows. Disabled by default in the distributable configuration. |
 
 ## OAuth
 
@@ -47,6 +48,8 @@ DevSpace uses a single-user OAuth approval flow.
 | --- | --- |
 | `DEVSPACE_OAUTH_ACCESS_TOKEN_TTL_SECONDS` | `3600` |
 | `DEVSPACE_OAUTH_REFRESH_TOKEN_TTL_SECONDS` | `2592000` |
+| `DEVSPACE_OAUTH_AUTHORIZATION_MAX_FAILURES` | `5` |
+| `DEVSPACE_OAUTH_AUTHORIZATION_FAILURE_WINDOW_SECONDS` | `900` |
 | `DEVSPACE_OAUTH_SCOPES` | `devspace` |
 | `DEVSPACE_OAUTH_ALLOWED_REDIRECT_HOSTS` | `chatgpt.com,localhost,127.0.0.1` |
 
@@ -70,8 +73,19 @@ MCP clients discover metadata from:
 
 | Value | Behavior |
 | --- | --- |
-| `minimal` | Default. Disables dedicated search and list tools. Clients use the shell tool with `rg`, `grep`, `find`, `ls`, or `tree` for inspection. |
-| `full` | Enables dedicated `grep`, `glob`, and `ls` tools. |
+| `minimal` | With shell enabled, disables dedicated search and list tools. Clients use the shell tool for inspection. |
+| `full` | Enables dedicated `grep`, `glob`, and `ls` tools. This is the effective default while shell is disabled. |
+
+Shell execution is intentionally separate from tool mode:
+
+```bash
+DEVSPACE_SHELL_ENABLED=1 npx @waishnav/devspace serve
+```
+
+Enable it after approving a trusted client with the Owner password. Commands
+run with the permissions and credentials of the DevSpace operating-system user.
+DevSpace does not block shell commands by command text, filename,
+credential-like content, service name, or destination API.
 
 ## Widgets
 
@@ -122,7 +136,8 @@ DEVSPACE_OAUTH_OWNER_TOKEN="$(openssl rand -base64 32)" \
 DEVSPACE_ALLOWED_ROOTS="$HOME/personal,$HOME/work" \
 DEVSPACE_PUBLIC_BASE_URL="https://devspace.example.com" \
 DEVSPACE_WORKTREE_ROOT="$HOME/.devspace/worktrees" \
-DEVSPACE_TOOL_MODE="minimal" \
+DEVSPACE_SHELL_ENABLED="0" \
+DEVSPACE_TOOL_MODE="full" \
 DEVSPACE_TOOL_NAMING="short" \
 DEVSPACE_WIDGETS="full" \
 npx @waishnav/devspace serve
@@ -130,3 +145,10 @@ npx @waishnav/devspace serve
 
 The environment assignments must be part of the same command invocation, or
 exported first.
+
+For a single-user, Owner-approved deployment where shell access is enabled and
+the operating-system account is the intended permission boundary, set
+`DEVSPACE_ALLOWED_ROOTS=/`. This lets the structured workspace tools open any
+path the DevSpace user can access. Keep the narrower default when shell access
+is disabled or when roots are intentionally used to organize separate trust
+zones.

@@ -135,9 +135,12 @@ The shell tool is for commands that belong in a terminal:
 
 - tests
 - builds
-- git inspection
+- Git and GitHub CLI workflows
 - package scripts
+- code generation
+- development servers
+- ordinary command-line file operations
 - environment checks
 
-File writes should go through the edit/write tools rather than shell
-redirection, heredocs, `tee`, `sed -i`, or generated scripts.
+The edit/write tools remain useful for precise changes and review cards, but
+they are not a restriction on shell usage.

@@ -5,7 +5,14 @@ import { dirname, join, relative, resolve, sep } from "node:path";
 import { loadProjectContextFiles } from "@earendil-works/pi-coding-agent";
 import type { ServerConfig } from "./config.js";
 import { createManagedWorktree } from "./git-worktrees.js";
-import { assertAllowedPath, isPathInsideRoot, resolveAllowedPath } from "./roots.js";
+import {
+  assertAllowedExistingPath,
+  expandHomePath,
+  isPathInsideRoot,
+  resolveAllowedExistingPath,
+  resolveAllowedPath,
+  resolveAllowedProspectivePath,
+} from "./roots.js";
 import {
   loadWorkspaceSkills,
   markSkillActivated,
@@ -157,12 +164,23 @@ export class WorkspaceRegistry {
 
   resolveWorkingDirectory(workspace: Workspace, workingDirectory: string | undefined): string {
     const directory = workingDirectory ? this.resolvePath(workspace, workingDirectory) : workspace.root;
-    return assertAllowedPath(directory, [workspace.root]);
+    return assertAllowedExistingPath(directory, [workspace.root]);
   }
 
   private async openCheckoutWorkspace(path: string): Promise<WorkspaceContext> {
-    const root = assertAllowedPath(path, this.config.allowedRoots);
-    await mkdir(root, { recursive: true });
+    const requestedRoot = resolve(expandHomePath(path));
+    const prospectiveRoot = await resolveAllowedProspectivePath(
+      requestedRoot,
+      process.cwd(),
+      this.config.allowedRoots,
+    );
+    await mkdir(prospectiveRoot, { recursive: true });
+    await resolveAllowedExistingPath(
+      requestedRoot,
+      process.cwd(),
+      this.config.allowedRoots,
+    );
+    const root = requestedRoot;
 
     const rootStats = await stat(root);
     if (!rootStats.isDirectory()) {
@@ -232,11 +250,13 @@ export class WorkspaceRegistry {
       if (!sourceRoot) {
         throw new Error(`Stored worktree workspace is missing sourceRoot: ${root}`);
       }
-      assertAllowedPath(sourceRoot, this.config.allowedRoots);
-      return assertAllowedPath(root, [this.config.worktreeRoot]);
+      assertAllowedExistingPath(sourceRoot, this.config.allowedRoots);
+      assertAllowedExistingPath(root, [this.config.worktreeRoot]);
+      return root;
     }
 
-    return assertAllowedPath(root, this.config.allowedRoots);
+    assertAllowedExistingPath(root, this.config.allowedRoots);
+    return root;
   }
 
   private loadInitialAgentsFiles(root: string): LoadedAgentsFile[] {

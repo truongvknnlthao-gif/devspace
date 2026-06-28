@@ -18,11 +18,29 @@ assert.equal(loadConfig({ ...baseEnv, DEVSPACE_WIDGETS: "off" }).widgets, "off")
 assert.equal(loadConfig(baseEnv).toolNaming, "short");
 assert.equal(loadConfig({ ...baseEnv, DEVSPACE_TOOL_NAMING: "short" }).toolNaming, "short");
 assert.equal(loadConfig({ ...baseEnv, DEVSPACE_TOOL_NAMING: "legacy" }).toolNaming, "legacy");
-assert.equal(loadConfig(baseEnv).minimalTools, true);
-assert.equal(loadConfig({ ...baseEnv, DEVSPACE_TOOL_MODE: "minimal" }).minimalTools, true);
+assert.equal(loadConfig(baseEnv).shellEnabled, false);
+assert.equal(loadConfig({ ...baseEnv, DEVSPACE_SHELL_ENABLED: "1" }).shellEnabled, true);
+assert.equal(loadConfig(baseEnv).minimalTools, false);
+assert.equal(loadConfig({ ...baseEnv, DEVSPACE_TOOL_MODE: "minimal" }).minimalTools, false);
 assert.equal(loadConfig({ ...baseEnv, DEVSPACE_TOOL_MODE: "full" }).minimalTools, false);
 assert.equal(loadConfig({ ...baseEnv, DEVSPACE_MINIMAL_TOOLS: "0" }).minimalTools, false);
-assert.equal(loadConfig({ ...baseEnv, DEVSPACE_MINIMAL_TOOLS: "1" }).minimalTools, true);
+assert.equal(loadConfig({ ...baseEnv, DEVSPACE_MINIMAL_TOOLS: "1" }).minimalTools, false);
+assert.equal(
+  loadConfig({
+    ...baseEnv,
+    DEVSPACE_SHELL_ENABLED: "1",
+    DEVSPACE_TOOL_MODE: "minimal",
+  }).minimalTools,
+  true,
+);
+assert.equal(
+  loadConfig({
+    ...baseEnv,
+    DEVSPACE_SHELL_ENABLED: "1",
+    DEVSPACE_MINIMAL_TOOLS: "1",
+  }).minimalTools,
+  true,
+);
 assert.equal(loadConfig(baseEnv).skillsEnabled, true);
 assert.equal(loadConfig({ ...baseEnv, DEVSPACE_SKILLS: "0" }).skillsEnabled, false);
 assert.equal(loadConfig({ ...baseEnv, DEVSPACE_SKILLS: "1" }).skillsEnabled, true);
@@ -92,6 +110,8 @@ assert.deepEqual(loadConfig(baseEnv).oauth.allowedRedirectHosts, [
 ]);
 assert.equal(loadConfig(baseEnv).oauth.accessTokenTtlSeconds, 3600);
 assert.equal(loadConfig(baseEnv).oauth.refreshTokenTtlSeconds, 2592000);
+assert.equal(loadConfig(baseEnv).oauth.authorizationMaxFailures, 5);
+assert.equal(loadConfig(baseEnv).oauth.authorizationFailureWindowSeconds, 900);
 
 assert.deepEqual(
   loadConfig({ ...baseEnv, DEVSPACE_OAUTH_SCOPES: "devspace,admin" }).oauth.scopes,
@@ -111,6 +131,18 @@ assert.equal(
   loadConfig({ ...baseEnv, DEVSPACE_OAUTH_REFRESH_TOKEN_TTL_SECONDS: "240" }).oauth
     .refreshTokenTtlSeconds,
   240,
+);
+assert.equal(
+  loadConfig({ ...baseEnv, DEVSPACE_OAUTH_AUTHORIZATION_MAX_FAILURES: "3" }).oauth
+    .authorizationMaxFailures,
+  3,
+);
+assert.equal(
+  loadConfig({
+    ...baseEnv,
+    DEVSPACE_OAUTH_AUTHORIZATION_FAILURE_WINDOW_SECONDS: "120",
+  }).oauth.authorizationFailureWindowSeconds,
+  120,
 );
 
 assert.throws(
@@ -132,6 +164,10 @@ assert.deepEqual(loadConfig(baseEnv).allowedHosts, ["localhost", "127.0.0.1", ":
 assert.equal(
   loadConfig({ ...baseEnv, DEVSPACE_PUBLIC_BASE_URL: "https://abc.trycloudflare.com/" }).publicBaseUrl,
   "https://abc.trycloudflare.com",
+);
+assert.throws(
+  () => loadConfig({ ...baseEnv, DEVSPACE_PUBLIC_BASE_URL: "http://public.example.com" }),
+  /must use https unless it points to loopback/,
 );
 assert.deepEqual(
   loadConfig({ ...baseEnv, DEVSPACE_PUBLIC_BASE_URL: "https://abc.trycloudflare.com/" }).allowedHosts,

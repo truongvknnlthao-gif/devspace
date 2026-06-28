@@ -127,7 +127,11 @@ DevSpace gives ChatGPT tools to:
 
 - read, write, and edit files inside the opened workspace
 - search code and inspect directories
-- run shell commands for tests, builds, git, and package scripts
+- optionally run trusted local shell commands for tests, builds, Git, package
+  scripts, deployments, secret management, local config, credentials, and APIs
+- run narrow Git preflight checks without arbitrary shell commands
+- copy workspace files and run Git ignore checks for local config paths
+- prepare Cloudflare staging local files from committed example templates
 - use isolated Git worktrees for parallel coding sessions
 - follow project instructions from `AGENTS.md` and `CLAUDE.md`
 - discover local agent skills from your skill folders
@@ -135,11 +139,20 @@ DevSpace gives ChatGPT tools to:
 
 ## Mental Model
 
-DevSpace is remote access to selected local folders.
+DevSpace is remote access to local development workspaces.
 
-You decide which roots are allowed. The MCP client still has powerful local
-capabilities inside an opened workspace, including shell execution. Treat a
-connected client like a trusted coding partner with access to your machine.
+You decide whether workspace roots are narrow or unrestricted. When shell
+execution is enabled, configured roots are an organization boundary for the
+structured file tools, not a security sandbox: shell commands have the
+permissions of the DevSpace operating-system user. Treat an approved client
+like a trusted coding partner with access to that user account.
+
+After approving a trusted client with the Owner password, enable complete local
+development workflows with `DEVSPACE_SHELL_ENABLED=1`. The shell supports
+builds, tests, Git, GitHub CLI, package managers, code generation, scripts,
+ordinary file operations, deployment commands, secret-management commands, local
+config reads and writes, credential reads, and external API calls with the
+permissions of the DevSpace operating-system user.
 
 For a normal ChatGPT coding session:
 
@@ -147,7 +160,7 @@ For a normal ChatGPT coding session:
 2. Run `devspace serve`.
 3. Connect the MCP client to your public `/mcp` URL.
 4. Approve the connection with the Owner password.
-5. Ask ChatGPT to open a project inside one of your allowed roots.
+5. Ask ChatGPT to open a project inside one of your configured roots.
 
 ## Platform Support
 
