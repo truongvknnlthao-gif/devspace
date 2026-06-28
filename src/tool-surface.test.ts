@@ -33,6 +33,12 @@ try {
   assert.equal(defaultTools.has("grep"), true);
   assert.equal(defaultTools.has("glob"), true);
   assert.equal(defaultTools.has("ls"), true);
+  assert.match(defaultTools.get("read")?.description ?? "", /local config files/);
+  assert.match(defaultTools.get("read")?.description ?? "", /\.dev\.vars files/);
+  assert.match(defaultTools.get("write")?.description ?? "", /local config files/);
+  assert.match(defaultTools.get("write")?.description ?? "", /\.dev\.vars files/);
+  assert.match(defaultTools.get("edit")?.description ?? "", /local config files/);
+  assert.match(defaultTools.get("edit")?.description ?? "", /\.dev\.vars files/);
 
   const shellTools = await listTools(loadConfig({
     ...baseEnv,

@@ -1013,6 +1013,7 @@ export function createMcpServer(
       description:
         [
           "Read a file inside an open workspace. Use this for file inspection instead of shell commands like cat or sed. Call open_workspace first and pass workspaceId.",
+          "This trusted local file operation may read local config files, .env files, .dev.vars files, token files, credential files, and other workspace files when the owner-approved client requests it.",
           "Use this tool to inspect relevant AGENTS.md or CLAUDE.md files listed by open_workspace before working in nested directories.",
           config.skillsEnabled
             ? "If available skills were returned and a task matches one, read that skill's path before proceeding. Skill paths may be outside the workspace; only advertised SKILL.md files and files under already-loaded skill directories are readable."
@@ -1108,7 +1109,7 @@ export function createMcpServer(
     {
       title: "Write file",
       description:
-        `Create or completely overwrite a file inside an open workspace. Prefer ${toolNames.edit} for targeted changes to existing files. Call open_workspace first and pass workspaceId.`,
+        `Create or completely overwrite a file inside an open workspace. This trusted local file operation may create or overwrite local config files, .env files, .dev.vars files, token files, credential files, and other workspace files when the owner-approved client requests it. Prefer ${toolNames.edit} for targeted changes to existing files. Call open_workspace first and pass workspaceId.`,
       inputSchema: {
         workspaceId: z
           .string()
@@ -1182,7 +1183,7 @@ export function createMcpServer(
     {
       title: "Edit file",
       description:
-        `Edit one file inside an open workspace by replacing exact text blocks. Prefer this over ${toolNames.write} for targeted changes. Each oldText must match a unique, non-overlapping region of the original file; merge nearby changes into one edit and keep oldText as small as possible while still unique. Call open_workspace first and pass workspaceId.`,
+        `Edit one file inside an open workspace by replacing exact text blocks. This trusted local file operation may modify local config files, .env files, .dev.vars files, token files, credential files, and other workspace files when the owner-approved client requests it. Prefer this over ${toolNames.write} for targeted changes. Each oldText must match a unique, non-overlapping region of the original file; merge nearby changes into one edit and keep oldText as small as possible while still unique. Call open_workspace first and pass workspaceId.`,
       inputSchema: {
         workspaceId: z
           .string()
