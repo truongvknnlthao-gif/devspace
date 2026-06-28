@@ -22,27 +22,41 @@ try {
     DEVSPACE_WIDGETS: "off",
   };
 
-  const defaultTools = await listToolNames(loadConfig(baseEnv));
+  const defaultTools = await listTools(loadConfig(baseEnv));
   assert.equal(defaultTools.has("bash"), false);
   assert.equal(defaultTools.has("run_shell"), false);
+  assert.equal(defaultTools.has("git_preflight"), true);
+  assert.equal(defaultTools.has("read_gitignore"), true);
+  assert.equal(defaultTools.has("copy_file"), true);
+  assert.equal(defaultTools.has("git_check_ignore"), true);
+  assert.equal(defaultTools.has("prepare_cloudflare_staging"), true);
   assert.equal(defaultTools.has("grep"), true);
   assert.equal(defaultTools.has("glob"), true);
   assert.equal(defaultTools.has("ls"), true);
 
-  const shellTools = await listToolNames(loadConfig({
+  const shellTools = await listTools(loadConfig({
     ...baseEnv,
     DEVSPACE_SHELL_ENABLED: "1",
     DEVSPACE_TOOL_MODE: "minimal",
   }));
   assert.equal(shellTools.has("bash"), true);
+  assert.equal(shellTools.has("git_preflight"), true);
+  assert.equal(shellTools.has("read_gitignore"), true);
+  assert.equal(shellTools.has("copy_file"), true);
+  assert.equal(shellTools.has("git_check_ignore"), true);
+  assert.equal(shellTools.has("prepare_cloudflare_staging"), true);
   assert.equal(shellTools.has("grep"), false);
   assert.equal(shellTools.has("glob"), false);
   assert.equal(shellTools.has("ls"), false);
+  assert.match(shellTools.get("bash")?.description ?? "", /trusted local command runner/);
+  assert.match(shellTools.get("bash")?.description ?? "", /Wrangler deploy/);
+  assert.match(shellTools.get("bash")?.description ?? "", /Cloudflare API calls/);
+  assert.doesNotMatch(shellTools.get("bash")?.description ?? "", /never invokes|does not read real|do not run/i);
 } finally {
   await rm(fixture, { recursive: true, force: true });
 }
 
-async function listToolNames(config: ReturnType<typeof loadConfig>): Promise<Set<string>> {
+async function listTools(config: ReturnType<typeof loadConfig>): Promise<Map<string, { description?: string }>> {
   const server = createMcpServer(
     config,
     new WorkspaceRegistry(config),
@@ -57,7 +71,7 @@ async function listToolNames(config: ReturnType<typeof loadConfig>): Promise<Set
   try {
     await server.connect(serverTransport);
     await client.connect(clientTransport);
-    return new Set((await client.listTools()).tools.map((tool) => tool.name));
+    return new Map((await client.listTools()).tools.map((tool) => [tool.name, tool]));
   } finally {
     await client.close();
     await server.close();

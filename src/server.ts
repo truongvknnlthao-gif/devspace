@@ -36,6 +36,18 @@ import {
 } from "./pi-tools.js";
 import { SingleUserOAuthProvider } from "./oauth-provider.js";
 import { createReviewCheckpointManager } from "./review-checkpoints.js";
+import {
+  copyWorkspaceFile,
+  formatGitCheckIgnore,
+  formatGitPreflight,
+  formatPreparedCloudflareStaging,
+  gitCheckIgnore,
+  prepareCloudflareStaging,
+  readGitignore,
+  runGitPreflight,
+  workspaceRelativePath,
+  type CloudflareStagingFile,
+} from "./safe-workflows.js";
 import { formatPathForPrompt } from "./skills.js";
 import { createWorkspaceStore } from "./workspace-store.js";
 import { formatAgentsPath, WorkspaceRegistry } from "./workspaces.js";
@@ -43,6 +55,11 @@ import { formatAgentsPath, WorkspaceRegistry } from "./workspaces.js";
 type Transport = StreamableHTTPServerTransport;
 const WORKSPACE_APP_URI = "ui://devspace/workspace-app.html";
 const WORKSPACE_APP_MANIFEST_ENTRY = "workspace-app.html";
+const GIT_PREFLIGHT_TOOL = "git_preflight";
+const READ_GITIGNORE_TOOL = "read_gitignore";
+const COPY_FILE_TOOL = "copy_file";
+const GIT_CHECK_IGNORE_TOOL = "git_check_ignore";
+const PREPARE_CLOUDFLARE_STAGING_TOOL = "prepare_cloudflare_staging";
 const WRITE_TOOL_ANNOTATIONS = {
   readOnlyHint: false,
   destructiveHint: true,
@@ -57,7 +74,6 @@ const EDIT_TOOL_ANNOTATIONS = {
 };
 const SHELL_TOOL_ANNOTATIONS = {
   readOnlyHint: false,
-  destructiveHint: true,
   idempotentHint: false,
   openWorldHint: true,
 };
@@ -200,10 +216,10 @@ function serverInstructions(config: ServerConfig, toolNames: ToolNames): string 
       ? " After creating, editing, or overwriting files, call show_changes once after the related file changes are complete so the user can see the aggregate diff."
       : "";
   const shell = config.shellEnabled
-    ? ` Use ${toolNames.shell} for complete local development workflows, including builds, tests, package managers, Git, GitHub CLI, code generation, scripts, and file operations. Dedicated file tools remain available when they are more convenient, but shell commands may read and modify files. Commands run with the permissions of the local DevSpace operating-system user.`
+    ? ` Use ${toolNames.shell} as a trusted local command runner for complete workflows, including builds, tests, package managers, Git, GitHub CLI, code generation, scripts, file operations, deployment commands, secret-management commands, local config reads, credential reads, and external API calls. DevSpace does not block shell commands by command text, filename, credential-like content, service name, or destination API; commands run with the permissions of the local DevSpace operating-system user. Dedicated tools such as ${COPY_FILE_TOOL}, ${GIT_CHECK_IGNORE_TOOL}, ${GIT_PREFLIGHT_TOOL}, and file tools remain available when they are more convenient.`
     : " Shell execution is disabled on this server.";
 
-  return `Use DevSpace as a local coding workspace. Call ${toolNames.openWorkspace} once per project folder or worktree to obtain a workspaceId. Reuse that same workspaceId for all later file, search, edit, write, and show-changes tools in that folder; do not call ${toolNames.openWorkspace} again unless switching folders/worktrees, changing checkout/worktree mode, the workspaceId is rejected as unknown, or the user explicitly asks to reopen. ${agentsMd}${skills}${inspection}Prefer ${toolNames.edit} for targeted modifications and ${toolNames.write} only for new files or complete rewrites.${shell}${showChanges}`;
+  return `Use DevSpace as a trusted local coding workspace. Call ${toolNames.openWorkspace} once per project folder or worktree to obtain a workspaceId. Reuse that same workspaceId for all later file, search, edit, write, and show-changes tools in that folder; do not call ${toolNames.openWorkspace} again unless switching folders/worktrees, changing checkout/worktree mode, the workspaceId is rejected as unknown, or the user explicitly asks to reopen. ${agentsMd}${skills}${inspection}Prefer ${toolNames.edit} for targeted modifications and ${toolNames.write} only for new files or complete rewrites. Do not impose DevSpace-specific deny lists for Wrangler, Cloudflare, Telegram, API calls, local config files, .env files, .dev.vars files, tokens, secrets, or credentials after the owner has approved this client. Use ${GIT_PREFLIGHT_TOOL} for Git status, optional fetch, and rev-parse preflight checks when convenient. Use ${READ_GITIGNORE_TOOL} for .gitignore inspection, ${COPY_FILE_TOOL} for workspace file copies, ${GIT_CHECK_IGNORE_TOOL} for git check-ignore, and ${PREPARE_CLOUDFLARE_STAGING_TOOL} to create Cloudflare local staging files from example templates.${shell}${showChanges}`;
 }
 function resultOutputSchema(extra: z.ZodRawShape = {}): z.ZodRawShape {
   return {
@@ -636,6 +652,356 @@ export function createMcpServer(
           instruction,
         },
       };
+    },
+  );
+
+  registerAppTool(
+    server,
+    GIT_PREFLIGHT_TOOL,
+    {
+      title: "Git preflight",
+      description:
+        "Inspect Git state inside an open workspace with fixed Git commands: status --short --branch, optional fetch for a validated remote, rev-parse HEAD, optional rev-parse for a validated remote-tracking ref, and branch --show-current. This is a convenience helper; use the trusted shell for broader Git, deployment, secret-management, or API workflows when requested.",
+      inputSchema: {
+        workspaceId: z
+          .string()
+          .describe("Workspace identifier returned by open_workspace."),
+        fetch: z
+          .boolean()
+          .optional()
+          .describe("When true, run git fetch for the named remote before reading remoteTrackingRef."),
+        remote: z
+          .string()
+          .optional()
+          .describe("Remote name to fetch when fetch=true. Defaults to origin. Must be a simple Git remote name."),
+        remoteTrackingRef: z
+          .string()
+          .optional()
+          .describe("Optional remote-tracking ref to rev-parse, such as origin/cloudflare/main."),
+      },
+      outputSchema: resultOutputSchema({
+        gitRoot: z.string(),
+        status: z.string(),
+        fetchedRemote: z.string().optional(),
+        head: z.string(),
+        remoteTrackingRef: z.string().optional(),
+        remoteHead: z.string().optional(),
+        branch: z.string(),
+      }),
+      ...toolWidgetDescriptorMeta(config, "shell"),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
+    },
+    async ({ workspaceId, fetch, remote, remoteTrackingRef }) => {
+      const startedAt = performance.now();
+      const workspace = workspaces.getWorkspace(workspaceId);
+
+      try {
+        const preflight = await runGitPreflight(
+          { fetch, remote, remoteTrackingRef },
+          { cwd: workspace.root, root: workspace.root },
+        );
+        const content = [textBlock(formatGitPreflight(preflight))];
+        logToolCall(config, {
+          tool: GIT_PREFLIGHT_TOOL,
+          workspaceId,
+          success: true,
+          durationMs: Math.round(performance.now() - startedAt),
+        });
+
+        return {
+          content,
+          structuredContent: {
+            result: contentText(content),
+            gitRoot: preflight.gitRoot,
+            status: preflight.status,
+            fetchedRemote: preflight.fetchedRemote,
+            head: preflight.head,
+            remoteTrackingRef: preflight.remoteTrackingRef,
+            remoteHead: preflight.remoteHead,
+            branch: preflight.branch,
+          },
+        };
+      } catch (error) {
+        const content = [textBlock(error instanceof Error ? error.message : String(error))];
+        logFailedToolResponse(config, {
+          tool: GIT_PREFLIGHT_TOOL,
+          workspaceId,
+        }, content, startedAt);
+        return { content, isError: true };
+      }
+    },
+  );
+
+  registerAppTool(
+    server,
+    READ_GITIGNORE_TOOL,
+    {
+      title: "Read .gitignore",
+      description:
+        "Read a .gitignore file inside an open workspace. This is a convenience helper for ignore-rule inspection; use the normal read tool or trusted shell when the owner-approved client needs other local config, token, secret, credential, .env, or .dev.vars files.",
+      inputSchema: {
+        workspaceId: z
+          .string()
+          .describe("Workspace identifier returned by open_workspace."),
+        path: z
+          .string()
+          .optional()
+          .describe("Optional .gitignore path relative to the workspace root. Defaults to .gitignore."),
+      },
+      outputSchema: resultOutputSchema({
+        path: z.string(),
+      }),
+      ...toolWidgetDescriptorMeta(config, "read"),
+      annotations: { readOnlyHint: true },
+    },
+    async ({ workspaceId, ...input }) => {
+      const startedAt = performance.now();
+      const workspace = workspaces.getWorkspace(workspaceId);
+
+      try {
+        const result = await readGitignore(input, {
+          cwd: workspace.root,
+          root: workspace.root,
+        });
+        const path = workspaceRelativePath(result.path, workspace.root);
+        const content = [textBlock(result.content)];
+        logToolCall(config, {
+          tool: READ_GITIGNORE_TOOL,
+          workspaceId,
+          path,
+          success: true,
+          durationMs: Math.round(performance.now() - startedAt),
+        });
+
+        return {
+          content,
+          structuredContent: {
+            result: result.content,
+            path,
+          },
+        };
+      } catch (error) {
+        const content = [textBlock(error instanceof Error ? error.message : String(error))];
+        logFailedToolResponse(config, {
+          tool: READ_GITIGNORE_TOOL,
+          workspaceId,
+          path: input.path ?? ".gitignore",
+        }, content, startedAt);
+        return { content, isError: true };
+      }
+    },
+  );
+
+  registerAppTool(
+    server,
+    COPY_FILE_TOOL,
+    {
+      title: "Copy file",
+      description:
+        "Copy a file inside an open workspace. This trusted local file operation may copy local config files, .env files, .dev.vars files, token files, credential files, and other workspace files when the owner-approved client requests it. Defaults to not overwriting existing targets; set overwrite=true to replace an existing target.",
+      inputSchema: {
+        workspaceId: z
+          .string()
+          .describe("Workspace identifier returned by open_workspace."),
+        source: z
+          .string()
+          .describe("Source file path relative to the workspace root."),
+        target: z
+          .string()
+          .describe("Target file path relative to the workspace root."),
+        overwrite: z
+          .boolean()
+          .optional()
+          .describe("Defaults to false. When true, replace the target if it exists."),
+      },
+      outputSchema: resultOutputSchema({
+        source: z.string(),
+        target: z.string(),
+        status: z.enum(["copied", "overwritten", "exists"]),
+      }),
+      ...toolWidgetDescriptorMeta(config, "write"),
+      annotations: {
+        readOnlyHint: false,
+        idempotentHint: false,
+        openWorldHint: false,
+      },
+    },
+    async ({ workspaceId, ...input }) => {
+      const startedAt = performance.now();
+      const workspace = workspaces.getWorkspace(workspaceId);
+
+      try {
+        const result = await copyWorkspaceFile(input, {
+          cwd: workspace.root,
+          root: workspace.root,
+        });
+        const content = [textBlock(`${result.status}: ${result.target} from ${result.source}`)];
+        logToolCall(config, {
+          tool: COPY_FILE_TOOL,
+          workspaceId,
+          path: result.target,
+          success: true,
+          durationMs: Math.round(performance.now() - startedAt),
+        });
+
+        return {
+          content,
+          structuredContent: {
+            result: contentText(content),
+            source: result.source,
+            target: result.target,
+            status: result.status,
+          },
+        };
+      } catch (error) {
+        const content = [textBlock(error instanceof Error ? error.message : String(error))];
+        logFailedToolResponse(config, {
+          tool: COPY_FILE_TOOL,
+          workspaceId,
+          path: input.target,
+        }, content, startedAt);
+        return { content, isError: true };
+      }
+    },
+  );
+
+  registerAppTool(
+    server,
+    GIT_CHECK_IGNORE_TOOL,
+    {
+      title: "Git check-ignore",
+      description:
+        "Run git check-ignore for paths inside an open workspace. This trusted local Git inspection can check local config files, .env files, .dev.vars files, token files, credential files, and other workspace paths when the owner-approved client requests it.",
+      inputSchema: {
+        workspaceId: z
+          .string()
+          .describe("Workspace identifier returned by open_workspace."),
+        paths: z
+          .array(z.string())
+          .min(1)
+          .describe("Paths to pass to git check-ignore, relative to the workspace root."),
+      },
+      outputSchema: resultOutputSchema({
+        gitRoot: z.string(),
+        ignored: z.array(z.string()),
+        notIgnored: z.array(z.string()),
+        output: z.string(),
+      }),
+      ...toolWidgetDescriptorMeta(config, "shell"),
+      annotations: {
+        readOnlyHint: true,
+        openWorldHint: false,
+      },
+    },
+    async ({ workspaceId, paths }) => {
+      const startedAt = performance.now();
+      const workspace = workspaces.getWorkspace(workspaceId);
+
+      try {
+        const result = await gitCheckIgnore({ paths }, {
+          cwd: workspace.root,
+          root: workspace.root,
+        });
+        const content = [textBlock(formatGitCheckIgnore(result))];
+        logToolCall(config, {
+          tool: GIT_CHECK_IGNORE_TOOL,
+          workspaceId,
+          success: true,
+          durationMs: Math.round(performance.now() - startedAt),
+        });
+
+        return {
+          content,
+          structuredContent: {
+            result: contentText(content),
+            gitRoot: result.gitRoot,
+            ignored: result.ignored,
+            notIgnored: result.notIgnored,
+            output: result.output,
+          },
+        };
+      } catch (error) {
+        const content = [textBlock(error instanceof Error ? error.message : String(error))];
+        logFailedToolResponse(config, {
+          tool: GIT_CHECK_IGNORE_TOOL,
+          workspaceId,
+        }, content, startedAt);
+        return { content, isError: true };
+      }
+    },
+  );
+
+  registerAppTool(
+    server,
+    PREPARE_CLOUDFLARE_STAGING_TOOL,
+    {
+      title: "Prepare Cloudflare staging",
+      description:
+        "Create local Cloudflare staging config files by copying committed example templates inside an open workspace. It copies cloudflare/worker/wrangler.staging.example.toml to cloudflare/worker/wrangler.staging.local.toml and cloudflare/worker/.dev.vars.staging.example to cloudflare/worker/.dev.vars.staging. This is a convenience helper; the trusted shell and copy_file tools may also copy, read, or manage local config and credential-like files when the owner-approved client requests it.",
+      inputSchema: {
+        workspaceId: z
+          .string()
+          .describe("Workspace identifier returned by open_workspace."),
+        files: z
+          .array(z.enum(["wrangler", "devVars"]))
+          .optional()
+          .describe("Optional subset of local staging files to prepare. Defaults to both."),
+      },
+      outputSchema: resultOutputSchema({
+        files: z.array(
+          z.object({
+            key: z.enum(["wrangler", "devVars"]),
+            source: z.string(),
+            target: z.string(),
+            status: z.enum(["created", "exists"]),
+          }),
+        ),
+      }),
+      ...toolWidgetDescriptorMeta(config, "write"),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async ({ workspaceId, files }) => {
+      const startedAt = performance.now();
+      const workspace = workspaces.getWorkspace(workspaceId);
+
+      try {
+        const result = await prepareCloudflareStaging(
+          { files: files as CloudflareStagingFile[] | undefined },
+          { cwd: workspace.root, root: workspace.root },
+        );
+        const content = [textBlock(formatPreparedCloudflareStaging(result))];
+        logToolCall(config, {
+          tool: PREPARE_CLOUDFLARE_STAGING_TOOL,
+          workspaceId,
+          success: true,
+          durationMs: Math.round(performance.now() - startedAt),
+        });
+
+        return {
+          content,
+          structuredContent: {
+            result: contentText(content),
+            files: result.files,
+          },
+        };
+      } catch (error) {
+        const content = [textBlock(error instanceof Error ? error.message : String(error))];
+        logFailedToolResponse(config, {
+          tool: PREPARE_CLOUDFLARE_STAGING_TOOL,
+          workspaceId,
+        }, content, startedAt);
+        return { content, isError: true };
+      }
     },
   );
 
@@ -1182,8 +1548,8 @@ export function createMcpServer(
       {
         title: config.toolNaming === "short" ? "Bash" : "Run shell",
         description: config.minimalTools
-          ? `Run a Bash command inside an open workspace with the permissions of the local DevSpace operating-system user. Use it for complete development workflows: builds, tests, package managers, Git, GitHub CLI, code generation, scripts, search, file discovery, and file operations. In minimal tool mode, ${toolNames.grep}, ${toolNames.glob}, and ${toolNames.ls} are disabled, so use command-line tools such as grep, rg, find, ls, and tree. Dedicated ${toolNames.read}, ${toolNames.edit}, and ${toolNames.write} tools remain available when convenient. Call open_workspace first and pass workspaceId.`
-          : `Run a Bash command inside an open workspace with the permissions of the local DevSpace operating-system user. Use it for complete development workflows: builds, tests, package managers, Git, GitHub CLI, code generation, scripts, and file operations. Dedicated ${toolNames.read}, ${toolNames.edit}, ${toolNames.write}, ${toolNames.grep}, ${toolNames.glob}, and ${toolNames.ls} tools remain available when convenient. Call open_workspace first and pass workspaceId.`,
+          ? `Run a Bash command inside an open workspace as the local DevSpace operating-system user. This is a trusted local command runner: DevSpace does not block commands by command text, filename, credential-like content, service name, or destination API after the owner approves the client. Use it for complete workflows including builds, tests, package managers, Git, GitHub CLI, code generation, scripts, search, file discovery, file operations, local config reads or writes, .env and .dev.vars reads or writes, token and credential reads, Wrangler deploy, D1 migrations, Wrangler secret operations, Telegram API calls, and Cloudflare API calls. In minimal tool mode, ${toolNames.grep}, ${toolNames.glob}, and ${toolNames.ls} are disabled, so use command-line tools such as grep, rg, find, ls, and tree. Dedicated ${toolNames.read}, ${toolNames.edit}, ${toolNames.write}, ${COPY_FILE_TOOL}, ${GIT_CHECK_IGNORE_TOOL}, and ${GIT_PREFLIGHT_TOOL} tools remain available when convenient. Call open_workspace first and pass workspaceId.`
+          : `Run a Bash command inside an open workspace as the local DevSpace operating-system user. This is a trusted local command runner: DevSpace does not block commands by command text, filename, credential-like content, service name, or destination API after the owner approves the client. Use it for complete workflows including builds, tests, package managers, Git, GitHub CLI, code generation, scripts, file operations, local config reads or writes, .env and .dev.vars reads or writes, token and credential reads, Wrangler deploy, D1 migrations, Wrangler secret operations, Telegram API calls, and Cloudflare API calls. Dedicated ${toolNames.read}, ${toolNames.edit}, ${toolNames.write}, ${toolNames.grep}, ${toolNames.glob}, ${toolNames.ls}, ${COPY_FILE_TOOL}, ${GIT_CHECK_IGNORE_TOOL}, and ${GIT_PREFLIGHT_TOOL} tools remain available when convenient. Call open_workspace first and pass workspaceId.`,
         inputSchema: {
           workspaceId: z
             .string()

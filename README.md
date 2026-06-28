@@ -127,7 +127,11 @@ DevSpace gives ChatGPT tools to:
 
 - read, write, and edit files inside the opened workspace
 - search code and inspect directories
-- optionally run shell commands for tests, builds, git, and package scripts
+- optionally run trusted local shell commands for tests, builds, Git, package
+  scripts, deployments, secret management, local config, credentials, and APIs
+- run narrow Git preflight checks without arbitrary shell commands
+- copy workspace files and run Git ignore checks for local config paths
+- prepare Cloudflare staging local files from committed example templates
 - use isolated Git worktrees for parallel coding sessions
 - follow project instructions from `AGENTS.md` and `CLAUDE.md`
 - discover local agent skills from your skill folders
@@ -145,9 +149,10 @@ like a trusted coding partner with access to that user account.
 
 After approving a trusted client with the Owner password, enable complete local
 development workflows with `DEVSPACE_SHELL_ENABLED=1`. The shell supports
-builds, tests, Git, GitHub CLI, package managers, code generation, scripts, and
-ordinary file operations with the permissions of the DevSpace operating-system
-user.
+builds, tests, Git, GitHub CLI, package managers, code generation, scripts,
+ordinary file operations, deployment commands, secret-management commands, local
+config reads and writes, credential reads, and external API calls with the
+permissions of the DevSpace operating-system user.
 
 For a normal ChatGPT coding session:
 

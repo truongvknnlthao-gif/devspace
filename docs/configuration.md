@@ -84,6 +84,8 @@ DEVSPACE_SHELL_ENABLED=1 npx @waishnav/devspace serve
 
 Enable it after approving a trusted client with the Owner password. Commands
 run with the permissions and credentials of the DevSpace operating-system user.
+DevSpace does not block shell commands by command text, filename,
+credential-like content, service name, or destination API.
 
 ## Widgets
 

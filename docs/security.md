@@ -103,11 +103,33 @@ DEVSPACE_SHELL_ENABLED=1 npx @waishnav/devspace serve
 
 After OAuth approval, shell commands run as local commands and can do what the
 DevSpace operating-system user can do, including builds, tests, Git, GitHub CLI,
-package management, scripts, file mutation, and access outside configured file
-tool roots. The filesystem allowlist applies to structured file tools; it is not
-a shell sandbox. The primary trust decision is approving the MCP client with
-the Owner password. Disconnect the app or rotate the Owner password if that
-trust should be revoked.
+package management, scripts, file mutation, local config reads and writes,
+credential reads, deployment commands, secret-management commands, and external
+API calls. DevSpace does not maintain command-text, filename, credential-like
+content, service-name, or destination-API deny lists. The filesystem allowlist
+applies to structured file tools; it is not a shell sandbox. The primary trust
+decision is approving the MCP client with the Owner password. Disconnect the app
+or rotate the Owner password if that trust should be revoked.
+
+## Narrow Workflow Tools
+
+DevSpace also exposes workflow helpers for common operations that do not require
+hand-written shell commands:
+
+- `git_preflight` runs fixed Git status, optional fetch, rev-parse, and branch
+  inspection commands with validated remote and ref names.
+- `read_gitignore` reads ignore rules.
+- `copy_file` copies files inside the workspace, including local config or
+  credential-like files when requested.
+- `git_check_ignore` checks ignore status for workspace paths, including local
+  config or credential-like paths when requested.
+- `prepare_cloudflare_staging` copies committed Cloudflare staging example files
+  to local staging targets.
+
+These helpers are convenience tools. The trusted shell remains available for
+broader workflows, including Wrangler, deployments, D1 migrations,
+secret-management commands, Telegram APIs, Cloudflare APIs, and credential
+reads when the owner-approved client requests them.
 
 ## Worktrees
 
