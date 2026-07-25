@@ -1,6 +1,6 @@
 {
   "name": "@waishnav/devspace",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Expose a secure local coding workspace through an MCP server.",
   "type": "module",
   "main": "dist/server.js",
@@ -26,7 +26,7 @@
     "build:app": "vite build",
     "dev": "node scripts/dev-server.mjs",
     "start": "node dist/cli.js serve",
-    "test": "tsx src/config.test.ts && tsx src/roots.test.ts && tsx src/security-boundaries.test.ts && tsx src/safe-workflows.test.ts && tsx src/tool-surface.test.ts && tsx src/skills.test.ts && tsx src/workspaces.test.ts && tsx src/review-checkpoints.test.ts && tsx src/oauth-store.test.ts && tsx src/job-manager.test.ts && tsx src/job-tools.test.ts",
+    "test": "tsx src/config.test.ts && tsx src/roots.test.ts && tsx src/security-boundaries.test.ts && tsx src/tool-surface.test.ts && tsx src/workspaces.test.ts && tsx src/review-checkpoints.test.ts && tsx src/oauth-store.test.ts && tsx src/job-manager.test.ts && tsx src/job-tools.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "keywords": [],

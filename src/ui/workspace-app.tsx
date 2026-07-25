@@ -352,7 +352,6 @@ function renderSummaryBadge(card: ToolResultCard): HTMLElement {
 
   if (card.tool === "open_workspace") {
     const agentsFiles = summaryNumber(summary, "agentsFiles") ?? 0;
-    const skills = summaryNumber(summary, "skills") ?? 0;
     const group = element("span", { className: "badge-group" });
     group.setAttribute("aria-label", "Workspace summary");
 
@@ -364,7 +363,7 @@ function renderSummaryBadge(card: ToolResultCard): HTMLElement {
       agentsBadge.insertAdjacentHTML("afterbegin", checkCircleIcon());
     }
 
-    group.append(agentsBadge, element("span", { className: "badge", text: `${skills} skills` }));
+    group.append(agentsBadge);
     return group;
   }
 
@@ -456,13 +455,9 @@ function setPayloadLoading(container: HTMLElement, loading: boolean): void {
 function workspacePayloadText(card: ToolResultCard): string {
   const agentsFiles = card.agentsFiles ?? [];
   const availableAgentsFiles = card.availableAgentsFiles ?? [];
-  const skills = card.skills ?? [];
   const lines = [
     card.workspaceId ? `Workspace: ${card.workspaceId}` : undefined,
     card.root ? `Root: ${card.root}` : undefined,
-    skills.length > 0
-      ? `Skills: ${skills.map((skill) => skill.name ?? skill.path ?? "unnamed").join(", ")}`
-      : "Skills: none",
     availableAgentsFiles.length > 0
       ? `Nested instructions: ${availableAgentsFiles.map((file) => file.path ?? "unknown").join(", ")}`
       : undefined,
@@ -492,25 +487,18 @@ function getToolDisplay(card: ToolResultCard): ToolDisplay {
   switch (card.tool) {
     case "open_workspace":
       return { icon: folderIcon(), title: "Workspace", label, tone: "workspace" };
-    case "read_file":
     case "read":
       return { icon: fileIcon(), title: "Read File", label, tone: "read" };
-    case "write_file":
     case "write":
       return { icon: filePlusIcon(), title: "Write File", label, tone: "write" };
-    case "edit_file":
     case "edit":
       return { icon: editIcon(), title: "Edit File", label, tone: "edit" };
-    case "grep_files":
     case "grep":
       return { icon: searchIcon(), title: "Grep", label, tone: "search" };
-    case "find_files":
     case "glob":
       return { icon: filesIcon(), title: "Glob", label, tone: "search" };
-    case "list_directory":
     case "ls":
       return { icon: listIcon(), title: "List Directory", label, tone: "directory" };
-    case "run_shell":
     case "bash":
       return { icon: terminalIcon(), title: "Bash", label, tone: "shell" };
     case "show_changes":

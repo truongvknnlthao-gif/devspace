@@ -20,7 +20,6 @@ const config = loadConfig({
   DEVSPACE_WORKTREE_ROOT: join(fixture, "worktrees"),
   DEVSPACE_WIDGETS: "off",
   DEVSPACE_SHELL_ENABLED: "1",
-  DEVSPACE_TOOL_MODE: "minimal",
 });
 const workspaces = new WorkspaceRegistry(config);
 const jobs = new JobManager(config.stateDir);

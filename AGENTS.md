@@ -17,8 +17,8 @@ coding agent.
 | Task | Read |
 | --- | --- |
 | Install, start, connect, or approve an MCP client | `docs/setup.md` |
-| Change environment variables, OAuth, tool modes, widgets, skills, or logging | `docs/configuration.md` |
-| Use workspaces, worktrees, project instructions, skills, shell tools, or durable jobs | `docs/chatgpt-coding-workflow.md` |
+| Change environment variables, OAuth, widgets, project instructions, or logging | `docs/configuration.md` |
+| Use workspaces, worktrees, project instructions, file tools, shell tools, or durable jobs | `docs/chatgpt-coding-workflow.md` |
 | Review trust boundaries, shell authority, OAuth, tunnels, worktrees, or local state protection | `docs/security.md` |
 | Diagnose Node ABI, tunnels, hosts, OAuth, unknown workspaces, worktrees, or connector 502 errors | `docs/gotchas.md` |
 | Build, release, upgrade, roll back, or clean a running DevSpace installation | `docs/runtime-operations.md` |

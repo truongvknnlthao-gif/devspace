@@ -75,49 +75,19 @@ should read the relevant nested file before working under that directory.
 This keeps instructions explicit and inspectable instead of silently injecting
 new context during later tool calls.
 
-## Skills
+## Tool Surface
 
-Skills are enabled by default for coding-agent workflows.
-
-DevSpace discovers skills from:
-
-- `DEVSPACE_AGENT_DIR`, which defaults to `~/.codex`
-- project `.pi/skills`
-- optional paths from `DEVSPACE_SKILL_PATHS`
-
-When `open_workspace` returns matching skills, the model should read the
-advertised `SKILL.md` before following that skill.
-
-Skill paths may be outside the workspace. DevSpace only permits reading:
-
-- advertised `SKILL.md` files
-- files under a skill directory after that skill's `SKILL.md` has been read
-
-Set `DEVSPACE_SKILLS=0` to hide skills from workspace output.
-
-## Tool Names
-
-Short names are the default:
+DevSpace uses one canonical short-name surface:
 
 - `open_workspace`
-- `read`
-- `write`
-- `edit`
-- `bash`
+- `read`, `write`, and `edit`
+- `grep`, `glob`, and `ls`
+- `bash`, `bash_start`, `bash_status`, `bash_logs`, `bash_cancel`, and
+  `bash_jobs` when shell execution is enabled
+- `show_changes` when `DEVSPACE_WIDGETS=changes`
 
-By default, DevSpace also runs in `DEVSPACE_TOOL_MODE=minimal`, so dedicated
-`grep`, `glob`, and `ls` tools are hidden. Use `bash` with command-line tools
-such as `rg`, `find`, and `ls` for search and directory inspection.
-
-Legacy names are available with `DEVSPACE_TOOL_NAMING=legacy`:
-
-- `open_workspace`
-- `read_file`
-- `write_file`
-- `edit_file`
-- `run_shell`
-
-Use `DEVSPACE_TOOL_MODE=full` to restore dedicated search and directory tools.
+Use the structured file and search tools when they make the operation clearer.
+Use `bash` for complete terminal workflows rather than adding narrow wrappers.
 
 ## Show Changes
 
