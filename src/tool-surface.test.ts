@@ -23,48 +23,38 @@ try {
   };
 
   const defaultTools = await listTools(loadConfig(baseEnv));
+  for (const tool of ["open_workspace", "read", "write", "edit", "grep", "glob", "ls"]) {
+    assert.equal(defaultTools.has(tool), true, `${tool} should be present`);
+  }
+  for (const removed of [
+    "git_preflight",
+    "read_gitignore",
+    "copy_file",
+    "git_check_ignore",
+    "prepare_cloudflare_staging",
+    "read_file",
+    "write_file",
+    "edit_file",
+    "grep_files",
+    "find_files",
+    "list_directory",
+    "run_shell",
+  ]) {
+    assert.equal(defaultTools.has(removed), false, `${removed} should be absent`);
+  }
   assert.equal(defaultTools.has("bash"), false);
-  assert.equal(defaultTools.has("run_shell"), false);
-  assert.equal(defaultTools.has("git_preflight"), true);
-  assert.equal(defaultTools.has("read_gitignore"), true);
-  assert.equal(defaultTools.has("copy_file"), true);
-  assert.equal(defaultTools.has("git_check_ignore"), true);
-  assert.equal(defaultTools.has("prepare_cloudflare_staging"), true);
-  assert.equal(defaultTools.has("grep"), true);
-  assert.equal(defaultTools.has("glob"), true);
-  assert.equal(defaultTools.has("ls"), true);
   assert.match(defaultTools.get("read")?.description ?? "", /local config files/);
-  assert.match(defaultTools.get("read")?.description ?? "", /\.dev\.vars files/);
   assert.match(defaultTools.get("write")?.description ?? "", /local config files/);
-  assert.match(defaultTools.get("write")?.description ?? "", /\.dev\.vars files/);
   assert.match(defaultTools.get("edit")?.description ?? "", /local config files/);
-  assert.match(defaultTools.get("edit")?.description ?? "", /\.dev\.vars files/);
 
-  const shellTools = await listTools(loadConfig({
-    ...baseEnv,
-    DEVSPACE_SHELL_ENABLED: "1",
-    DEVSPACE_TOOL_MODE: "minimal",
-  }));
-  assert.equal(shellTools.has("bash"), true);
-  assert.equal(shellTools.has("bash_start"), true);
-  assert.equal(shellTools.has("bash_status"), true);
-  assert.equal(shellTools.has("bash_logs"), true);
-  assert.equal(shellTools.has("bash_cancel"), true);
-  assert.equal(shellTools.has("bash_jobs"), true);
-  assert.equal(shellTools.has("git_preflight"), true);
-  assert.equal(shellTools.has("read_gitignore"), true);
-  assert.equal(shellTools.has("copy_file"), true);
-  assert.equal(shellTools.has("git_check_ignore"), true);
-  assert.equal(shellTools.has("prepare_cloudflare_staging"), true);
-  assert.equal(shellTools.has("grep"), false);
-  assert.equal(shellTools.has("glob"), false);
-  assert.equal(shellTools.has("ls"), false);
+  const shellTools = await listTools(loadConfig({ ...baseEnv, DEVSPACE_SHELL_ENABLED: "1" }));
+  for (const tool of ["bash", "bash_start", "bash_status", "bash_logs", "bash_cancel", "bash_jobs"]) {
+    assert.equal(shellTools.has(tool), true, `${tool} should be present`);
+  }
   assert.match(shellTools.get("bash")?.description ?? "", /trusted local command runner/);
   assert.match(shellTools.get("bash")?.description ?? "", /Wrangler deploy/);
-  assert.match(shellTools.get("bash")?.description ?? "", /Cloudflare API calls/);
   assert.match(shellTools.get("bash_start")?.description ?? "", /idempotency key/);
   assert.match(shellTools.get("bash_start")?.description ?? "", /does not filter/);
-  assert.doesNotMatch(shellTools.get("bash")?.description ?? "", /never invokes|does not read real|do not run/i);
 } finally {
   await rm(fixture, { recursive: true, force: true });
 }

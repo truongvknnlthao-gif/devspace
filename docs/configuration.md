@@ -60,23 +60,17 @@ MCP clients discover metadata from:
 /.well-known/oauth-authorization-server
 ```
 
-## Tool Modes
+## Tool Surface
 
-`DEVSPACE_TOOL_NAMING` controls tool names.
+DevSpace exposes one canonical short-name tool surface:
 
-| Value | Behavior |
-| --- | --- |
-| `short` | Default. Uses `read`, `edit`, `bash`, and related names. |
-| `legacy` | Uses `read_file`, `edit_file`, `run_shell`, and related names. |
+- `open_workspace`
+- `read`, `write`, and `edit`
+- `grep`, `glob`, and `ls`
+- optional `bash` and durable Bash job tools when shell execution is enabled
+- optional `show_changes` when `DEVSPACE_WIDGETS=changes`
 
-`DEVSPACE_TOOL_MODE` controls the tool surface.
-
-| Value | Behavior |
-| --- | --- |
-| `minimal` | With shell enabled, disables dedicated search and list tools. Clients use the shell tool for inspection. |
-| `full` | Enables dedicated `grep`, `glob`, and `ls` tools. This is the effective default while shell is disabled. |
-
-Shell execution is intentionally separate from tool mode:
+Shell execution is enabled separately:
 
 ```bash
 DEVSPACE_SHELL_ENABLED=1 npx @waishnav/devspace serve
@@ -97,20 +91,11 @@ credential-like content, service name, or destination API.
 | `changes` | Enables the aggregate `show_changes` tool and attaches widget UI to `open_workspace` and `show_changes`. |
 | `off` | Disables widget UI. |
 
-## Skills
+## Project Instructions
 
-| Variable | Purpose |
-| --- | --- |
-| `DEVSPACE_SKILLS` | Set to `0` to hide skills. Enabled by default. |
-| `DEVSPACE_AGENT_DIR` | Defaults to `~/.codex`. |
-| `DEVSPACE_SKILL_PATHS` | Optional comma-separated skill directories. |
-
-Example:
-
-```bash
-DEVSPACE_SKILL_PATHS="$HOME/.codex/skills,$HOME/.claude/skills" \
-npx @waishnav/devspace serve
-```
+`DEVSPACE_AGENT_DIR` optionally sets the global project-instruction directory.
+It defaults to `~/.codex`. DevSpace loads relevant `AGENTS.md` and `CLAUDE.md`
+files and returns nested instruction paths through `open_workspace`.
 
 ## Logging
 
@@ -137,8 +122,6 @@ DEVSPACE_ALLOWED_ROOTS="$HOME/personal,$HOME/work" \
 DEVSPACE_PUBLIC_BASE_URL="https://devspace.example.com" \
 DEVSPACE_WORKTREE_ROOT="$HOME/.devspace/worktrees" \
 DEVSPACE_SHELL_ENABLED="0" \
-DEVSPACE_TOOL_MODE="full" \
-DEVSPACE_TOOL_NAMING="short" \
 DEVSPACE_WIDGETS="full" \
 npx @waishnav/devspace serve
 ```

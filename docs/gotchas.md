@@ -185,23 +185,6 @@ npx @waishnav/devspace doctor
 
 Confirm Bash is detected.
 
-## Skills Do Not Appear
-
-Skills are enabled by default. Check:
-
-```bash
-DEVSPACE_SKILLS=1 npx @waishnav/devspace serve
-```
-
-DevSpace looks in:
-
-- `DEVSPACE_AGENT_DIR`, defaulting to `~/.codex`
-- project `.pi/skills`
-- `DEVSPACE_SKILL_PATHS`
-
-If a skill appears in `open_workspace`, the model must read that skill's
-`SKILL.md` before reading other files inside the skill directory.
-
 ## Review Card Does Not Appear
 
 Per-tool widget cards are enabled by default with:

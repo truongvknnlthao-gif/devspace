@@ -5,7 +5,6 @@ import type { LoggingConfig, LogFormat, LogLevel } from "./logger.js";
 import type { OAuthConfig } from "./oauth-provider.js";
 import { loadDevspaceFiles } from "./user-config.js";
 
-export type ToolNamingMode = "legacy" | "short";
 export type WidgetMode = "off" | "changes" | "full";
 const DEFAULT_OAUTH_ACCESS_TOKEN_TTL_SECONDS = 60 * 60;
 const DEFAULT_OAUTH_REFRESH_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60;
@@ -19,14 +18,10 @@ export interface ServerConfig {
   allowedRoots: string[];
   allowedHosts: string[];
   publicBaseUrl: string;
-  minimalTools: boolean;
   shellEnabled: boolean;
-  toolNaming: ToolNamingMode;
   widgets: WidgetMode;
   stateDir: string;
   worktreeRoot: string;
-  skillsEnabled: boolean;
-  skillPaths: string[];
   agentDir: string;
   logging: LoggingConfig;
 }
@@ -82,16 +77,6 @@ function parseBoolean(value: string | undefined): boolean {
   return ["1", "true", "yes", "on"].includes(value?.toLowerCase() ?? "");
 }
 
-function parseMinimalTools(env: NodeJS.ProcessEnv): boolean {
-  if (env.DEVSPACE_TOOL_MODE === "minimal") return true;
-  if (env.DEVSPACE_TOOL_MODE === "full") return false;
-  if (env.DEVSPACE_TOOL_MODE) {
-    throw new Error(`Invalid DEVSPACE_TOOL_MODE: ${env.DEVSPACE_TOOL_MODE}`);
-  }
-  if (env.DEVSPACE_MINIMAL_TOOLS !== undefined) return parseBoolean(env.DEVSPACE_MINIMAL_TOOLS);
-  return true;
-}
-
 function parseLogLevel(value: string | undefined): LogLevel {
   if (!value || value === "info") return "info";
   if (["silent", "error", "warn", "debug"].includes(value)) return value as LogLevel;
@@ -104,16 +89,6 @@ function parseLogFormat(value: string | undefined): LogFormat {
   if (value === "pretty") return "pretty";
 
   throw new Error(`Invalid DEVSPACE_LOG_FORMAT: ${value}`);
-}
-
-function parsePathList(value: string | undefined): string[] {
-  return (
-    value
-      ?.split(",")
-      .map((entry) => entry.trim())
-      .filter(Boolean)
-      .map((entry) => resolve(expandHomePath(entry))) ?? []
-  );
 }
 
 function parseStringList(value: string | undefined, fallback: string[]): string[] {
@@ -134,13 +109,6 @@ function parsePositiveInteger(value: string | undefined, fallback: number, name:
   }
 
   return parsed;
-}
-
-function parseToolNaming(value: string | undefined): ToolNamingMode {
-  if (!value || value === "short") return "short";
-  if (value === "legacy") return "legacy";
-
-  throw new Error(`Invalid DEVSPACE_TOOL_NAMING: ${value}`);
 }
 
 function parseLoggingConfig(env: NodeJS.ProcessEnv): LoggingConfig {
@@ -233,8 +201,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     ...(files.config.allowedHosts ?? []),
   ];
   const shellEnabled = parseBoolean(env.DEVSPACE_SHELL_ENABLED);
-  const configuredMinimalTools = parseMinimalTools(env);
-  const minimalTools = shellEnabled ? configuredMinimalTools : false;
 
   return {
     host,
@@ -243,14 +209,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     allowedRoots: parseAllowedRoots(env.DEVSPACE_ALLOWED_ROOTS ?? files.config.allowedRoots),
     allowedHosts: parseAllowedHosts(env.DEVSPACE_ALLOWED_HOSTS, derivedAllowedHosts),
     publicBaseUrl,
-    minimalTools,
     shellEnabled,
-    toolNaming: parseToolNaming(env.DEVSPACE_TOOL_NAMING),
     widgets: parseWidgetMode(env.DEVSPACE_WIDGETS),
     stateDir: resolve(expandHomePath(env.DEVSPACE_STATE_DIR ?? files.config.stateDir ?? defaultStateDir())),
     worktreeRoot: resolve(expandHomePath(env.DEVSPACE_WORKTREE_ROOT ?? files.config.worktreeRoot ?? defaultWorktreeRoot())),
-    skillsEnabled: env.DEVSPACE_SKILLS === undefined ? true : parseBoolean(env.DEVSPACE_SKILLS),
-    skillPaths: parsePathList(env.DEVSPACE_SKILL_PATHS),
     agentDir: resolve(expandHomePath(env.DEVSPACE_AGENT_DIR ?? files.config.agentDir ?? defaultAgentDir())),
     logging: parseLoggingConfig(env),
   };

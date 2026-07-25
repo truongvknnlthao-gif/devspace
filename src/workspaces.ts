@@ -13,13 +13,6 @@ import {
   resolveAllowedPath,
   resolveAllowedProspectivePath,
 } from "./roots.js";
-import {
-  loadWorkspaceSkills,
-  markSkillActivated,
-  resolveSkillReadPath,
-  type LoadedSkills,
-  type SkillReadResolution,
-} from "./skills.js";
 
 export interface LoadedAgentsFile {
   path: string;
@@ -45,9 +38,6 @@ export interface Workspace {
   mode: WorkspaceMode;
   sourceRoot?: string;
   worktree?: WorkspaceWorktree;
-  skills: LoadedSkills["skills"];
-  skillDiagnostics: LoadedSkills["diagnostics"];
-  activatedSkillDirs: Set<string>;
 }
 
 export interface WorkspaceContext {
@@ -59,7 +49,6 @@ export interface WorkspaceContext {
 export interface WorkspaceReadPath {
   absolutePath: string;
   readRoots: string[];
-  skillRead?: SkillReadResolution;
 }
 
 export interface OpenWorkspaceInput {
@@ -116,8 +105,6 @@ export class WorkspaceRegistry {
               managed: session.managed,
             }
           : undefined,
-      ...this.loadSkillsForWorkspace(root),
-      activatedSkillDirs: new Set(),
     };
     this.store?.touchSession(workspaceId);
     this.workspaces.set(restoredWorkspace.id, restoredWorkspace);
@@ -135,31 +122,10 @@ export class WorkspaceRegistry {
   }
 
   resolveReadPath(workspace: Workspace, inputPath: string): WorkspaceReadPath {
-    try {
-      return {
-        absolutePath: this.resolvePath(workspace, inputPath),
-        readRoots: [workspace.root],
-      };
-    } catch (workspaceError) {
-      const skillRead = resolveSkillReadPath(
-        workspace.skills,
-        workspace.activatedSkillDirs,
-        inputPath,
-      );
-      if (!skillRead) throw workspaceError;
-
-      return {
-        absolutePath: skillRead.absolutePath,
-        readRoots: [workspace.root, skillRead.skill.baseDir],
-        skillRead,
-      };
-    }
-  }
-
-  markReadPathLoaded(workspace: Workspace, readPath: WorkspaceReadPath): void {
-    if (readPath.skillRead?.isSkillFile) {
-      markSkillActivated(workspace.activatedSkillDirs, readPath.skillRead.skill);
-    }
+    return {
+      absolutePath: this.resolvePath(workspace, inputPath),
+      readRoots: [workspace.root],
+    };
   }
 
   resolveWorkingDirectory(workspace: Workspace, workingDirectory: string | undefined): string {
@@ -217,8 +183,6 @@ export class WorkspaceRegistry {
       mode: input.mode,
       sourceRoot: input.sourceRoot,
       worktree: input.worktree,
-      ...this.loadSkillsForWorkspace(input.root),
-      activatedSkillDirs: new Set(),
     };
 
     this.store?.createSession({
@@ -235,14 +199,6 @@ export class WorkspaceRegistry {
     const availableAgentsFiles = await this.findAvailableAgentsFiles(workspace.root, agentsFiles);
 
     return { workspace, agentsFiles, availableAgentsFiles };
-  }
-
-  private loadSkillsForWorkspace(root: string): Pick<Workspace, "skills" | "skillDiagnostics"> {
-    const result = loadWorkspaceSkills(this.config, root);
-    return {
-      skills: result.skills,
-      skillDiagnostics: result.diagnostics,
-    };
   }
 
   private assertWorkspaceRootAllowed(root: string, mode: WorkspaceMode, sourceRoot: string | undefined): string {

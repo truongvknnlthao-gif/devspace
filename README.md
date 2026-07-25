@@ -129,12 +129,8 @@ DevSpace gives ChatGPT tools to:
 - search code and inspect directories
 - optionally run trusted local shell commands for tests, builds, Git, package
   scripts, deployments, secret management, local config, credentials, and APIs
-- run narrow Git preflight checks without arbitrary shell commands
-- copy workspace files and run Git ignore checks for local config paths
-- prepare Cloudflare staging local files from committed example templates
 - use isolated Git worktrees for parallel coding sessions
 - follow project instructions from `AGENTS.md` and `CLAUDE.md`
-- discover local agent skills from your skill folders
 - show tool cards and optional change summaries in ChatGPT Apps-compatible hosts
 
 ## Mental Model

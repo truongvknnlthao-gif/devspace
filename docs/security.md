@@ -111,25 +111,15 @@ applies to structured file tools; it is not a shell sandbox. The primary trust
 decision is approving the MCP client with the Owner password. Disconnect the app
 or rotate the Owner password if that trust should be revoked.
 
-## Narrow Workflow Tools
+## General Tool Surface
 
-DevSpace also exposes workflow helpers for common operations that do not require
-hand-written shell commands:
+DevSpace core exposes general workspace, file, search, shell, worktree, and
+durable-job capabilities. It does not add fixed wrappers for individual Git
+commands, ignore-file operations, file copies, cloud providers, repositories,
+bots, or staging layouts.
 
-- `git_preflight` runs fixed Git status, optional fetch, rev-parse, and branch
-  inspection commands with validated remote and ref names.
-- `read_gitignore` reads ignore rules.
-- `copy_file` copies files inside the workspace, including local config or
-  credential-like files when requested.
-- `git_check_ignore` checks ignore status for workspace paths, including local
-  config or credential-like paths when requested.
-- `prepare_cloudflare_staging` copies committed Cloudflare staging example files
-  to local staging targets.
-
-These helpers are convenience tools. The trusted shell remains available for
-broader workflows, including Wrangler, deployments, D1 migrations,
-secret-management commands, Telegram APIs, Cloudflare APIs, and credential
-reads when the owner-approved client requests them.
+Use the trusted `bash` tool for complete command-line workflows. Keep
+product-specific automation in the owning repository or a separate plugin.
 
 ## Worktrees
 
