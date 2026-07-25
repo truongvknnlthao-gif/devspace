@@ -46,6 +46,11 @@ try {
     DEVSPACE_TOOL_MODE: "minimal",
   }));
   assert.equal(shellTools.has("bash"), true);
+  assert.equal(shellTools.has("bash_start"), true);
+  assert.equal(shellTools.has("bash_status"), true);
+  assert.equal(shellTools.has("bash_logs"), true);
+  assert.equal(shellTools.has("bash_cancel"), true);
+  assert.equal(shellTools.has("bash_jobs"), true);
   assert.equal(shellTools.has("git_preflight"), true);
   assert.equal(shellTools.has("read_gitignore"), true);
   assert.equal(shellTools.has("copy_file"), true);
@@ -57,6 +62,8 @@ try {
   assert.match(shellTools.get("bash")?.description ?? "", /trusted local command runner/);
   assert.match(shellTools.get("bash")?.description ?? "", /Wrangler deploy/);
   assert.match(shellTools.get("bash")?.description ?? "", /Cloudflare API calls/);
+  assert.match(shellTools.get("bash_start")?.description ?? "", /idempotency key/);
+  assert.match(shellTools.get("bash_start")?.description ?? "", /does not filter/);
   assert.doesNotMatch(shellTools.get("bash")?.description ?? "", /never invokes|does not read real|do not run/i);
 } finally {
   await rm(fixture, { recursive: true, force: true });

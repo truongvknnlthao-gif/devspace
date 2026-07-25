@@ -144,3 +144,25 @@ The shell tool is for commands that belong in a terminal:
 
 The edit/write tools remain useful for precise changes and review cards, but
 they are not a restriction on shell usage.
+
+## Durable Shell Jobs
+
+Use synchronous `bash` for short commands that are expected to finish within one
+connector request. Use durable jobs for builds, tests, deployments, migrations,
+downloads, or any command that may run for more than a few seconds:
+
+1. Call `bash_start` with the workspace, command, and a stable `requestId`.
+2. Save the returned `jobId`.
+3. Poll `bash_status` and read incremental output with `bash_logs`.
+4. Pass `nextCursor` back to `bash_logs` to avoid repeating previous output.
+5. Use `bash_cancel` to terminate the whole process group.
+6. After reconnecting, use `bash_jobs` to recover active or recent jobs.
+
+`requestId` is an idempotency key, not a permission boundary. Retrying the same
+intended execution with the same ID returns the existing job. Use a new ID when
+you intentionally want to run the same command again.
+
+Jobs are stored under the configured DevSpace state directory and run through a
+small detached runner. They continue if the MCP request, client session, tunnel,
+or DevSpace server process disconnects. The next server process can read their
+status and logs.

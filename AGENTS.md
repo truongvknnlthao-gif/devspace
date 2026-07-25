@@ -27,7 +27,11 @@ Core constraints:
 
 - Treat this as remote access to the local machine; security is part of the
   core design, not a later add-on.
-- Start with a narrow filesystem allowlist.
+- Set the trust boundary at owner approval, the DevSpace operating-system user,
+  and the configured workspace roots. After an owner approves a trusted client,
+  do not add command-text, filename, credential, service, or destination deny lists.
 - Prefer explicit, inspectable tool calls over autonomous local agent loops.
-- Keep the first version small enough to validate with real ChatGPT/Claude MCP
-  clients before adding UI or workflow features.
+- Long-running shell work must use durable jobs with idempotent request IDs,
+  resumable logs, process-group cancellation, and recovery after reconnects.
+- Never replace the currently serving runtime in place. Build and validate a
+  candidate on a separate port, then use an atomic switch with automatic rollback.

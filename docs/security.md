@@ -143,3 +143,14 @@ By default, DevSpace logs requests and tool calls. Shell command previews are
 disabled unless `DEVSPACE_LOG_SHELL_COMMANDS=1`.
 
 Do not enable shell command logging if commands may contain secrets.
+
+## Reliability Does Not Add a Second Permission Layer
+
+Durable jobs change execution lifetime, not authority. `bash_start` runs with the
+same DevSpace operating-system user and the same owner-approved trust as `bash`.
+`requestId` prevents accidental duplicate submission; it does not inspect or
+restrict command text, files, credentials, services, APIs, or destinations.
+
+Job commands and logs are stored locally under the configured state directory so
+they can be recovered after a reconnect. Protect that directory with the same
+local account controls used for the rest of DevSpace state.

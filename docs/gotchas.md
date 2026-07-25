@@ -213,3 +213,21 @@ DEVSPACE_WIDGETS=full
 The aggregate `show_changes` tool is only exposed with
 `DEVSPACE_WIDGETS=changes`. Plain MCP clients may ignore ChatGPT Apps widget
 metadata and only show text results.
+
+## Connector Returns 502 During a Long Command
+
+A connector or tunnel error does not prove that the local command stopped. Do
+not immediately submit the same long synchronous command again.
+
+For long operations, use `bash_start`. If the client disconnects or reports a
+502:
+
+1. Reconnect to DevSpace.
+2. Call `bash_jobs` or `bash_status` for the existing job.
+3. Continue reading with `bash_logs`.
+4. Retry `bash_start` only with the same `requestId`; DevSpace will return the
+   original `jobId` instead of starting duplicate work.
+
+The `/healthz` response includes the runtime version, Git commit, build time,
+start time, PID, and active job count. Use it to distinguish a connector failure
+from a local DevSpace process failure.
