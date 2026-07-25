@@ -1,37 +1,65 @@
 # DevSpace
 
-This project exposes a local development workspace over MCP so ChatGPT, Claude,
-or another MCP-capable host can operate directly on this machine's approved
-development directories.
+This file is the project instruction index. Keep it short. Read the linked
+document only when the current task needs it, and keep detailed operational
+knowledge in `docs/` rather than expanding this file.
 
-The goal is not to delegate work to a separate local coding agent. The MCP host
-should call tools that read files, edit files, search code, and run shell
-commands directly against approved local project roots.
+## Mission
 
-Pi's SDK is currently used as the backend adapter for mature local coding
-primitives such as read, edit, write, grep, find, ls, and bash. DevSpace wraps
-those primitives behind a remote Streamable HTTP MCP interface, suitable for use
-through a Cloudflare Tunnel.
+DevSpace exposes owner-approved local development workspaces over MCP so a
+remote MCP host can read files, edit code, run commands, and complete real work
+on the user's machine. It is a direct execution layer, not a second autonomous
+coding agent.
 
-The model-facing workflow is workspace based. MCP clients should call
-`open_workspace` once per local project directory or worktree, then reuse the
-returned `workspaceId` for subsequent tool calls in that same folder. Do not
-call `open_workspace` again for the same folder unless the `workspaceId` is
-rejected as unknown, the client switches folders/worktrees or checkout/worktree
-mode, or the user explicitly asks to reopen. `AGENTS.md` files are returned
-automatically by `open_workspace` and by later tool calls when the requested path
-enters a directory with instructions that have not been loaded for that
-workspace.
+## Read On Demand
 
-Core constraints:
+| Task | Read |
+| --- | --- |
+| Install, start, connect, or approve an MCP client | `docs/setup.md` |
+| Change environment variables, OAuth, tool modes, widgets, skills, or logging | `docs/configuration.md` |
+| Use workspaces, worktrees, project instructions, skills, shell tools, or durable jobs | `docs/chatgpt-coding-workflow.md` |
+| Review trust boundaries, shell authority, OAuth, tunnels, worktrees, or local state protection | `docs/security.md` |
+| Diagnose Node ABI, tunnels, hosts, OAuth, unknown workspaces, worktrees, or connector 502 errors | `docs/gotchas.md` |
+| Build, release, upgrade, roll back, or clean a running DevSpace installation | `docs/runtime-operations.md` |
+| Understand public product behavior and local development commands | `README.md` and `package.json` |
 
-- Treat this as remote access to the local machine; security is part of the
-  core design, not a later add-on.
-- Set the trust boundary at owner approval, the DevSpace operating-system user,
-  and the configured workspace roots. After an owner approves a trusted client,
-  do not add command-text, filename, credential, service, or destination deny lists.
-- Prefer explicit, inspectable tool calls over autonomous local agent loops.
-- Long-running shell work must use durable jobs with idempotent request IDs,
-  resumable logs, process-group cancellation, and recovery after reconnects.
+## Core Rules
+
+- Call `open_workspace` once per checkout or worktree and reuse its
+  `workspaceId`. Reopen only when it is rejected, the path or mode changes, or
+  the user explicitly asks.
+- The trust boundary is owner approval, the DevSpace operating-system user, and
+  configured workspace roots. After a trusted client is approved, do not add
+  command-text, filename, credential, service, API, or destination deny lists.
+- Prefer explicit, inspectable tool calls over autonomous local-agent loops.
+- Use synchronous `bash` only for short commands. Use `bash_start`, a stable
+  `requestId`, `bash_status`, cursor-based `bash_logs`, `bash_cancel`, and
+  `bash_jobs` for work that may outlive one connector request.
+- A connector error does not prove that a local command stopped. After a 502 or
+  reconnect, query the existing job or process before submitting work again.
 - Never replace the currently serving runtime in place. Build and validate a
-  candidate on a separate port, then use an atomic switch with automatic rollback.
+  candidate on a separate port, publish it to a versioned directory, then use an
+  atomic switch with automatic rollback.
+- Keep general capabilities in DevSpace core. Put product-specific workflows in
+  the owning project or a separate plugin instead of hard-coding them here.
+- Preserve the previous stable runtime, the exact pre-switch backup, the final
+  deployment record, and the rollback script until the new release has passed a
+  real-use observation period.
+- Update the relevant document and this index whenever a change alters a trust
+  boundary, operator workflow, durable-job behavior, runtime upgrade process, or
+  recovery procedure.
+
+## Validation
+
+For ordinary source changes, run:
+
+```bash
+npm run typecheck
+npm test
+npm run build
+```
+
+For runtime or reliability changes, also validate a candidate on an independent
+port, inspect `/healthz`, exercise the real MCP tool surface, simulate reconnect
+or duplicate submission when relevant, and verify rollback before switching the
+serving runtime.
