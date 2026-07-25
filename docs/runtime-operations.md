@@ -16,6 +16,17 @@ release directory, and switch only after rollback is ready.
 Reliability changes execution lifetime, not authority. A durable job runs as the
 same owner-approved DevSpace operating-system user as synchronous `bash`.
 
+## Canonical Current State
+
+Project instructions and operational documentation describe the latest effective
+state. When a newer explicit decision replaces an older rule, update the
+canonical text and remove the superseded version. Do not keep duplicate guidance,
+obsolete uncommitted patches, local audit archives, or narrative timelines merely
+to show how the project evolved.
+
+Use Git commits, pull requests, and release tags for committed history. Keep local
+runtime artifacts only when they are required by the current recovery plan.
+
 ## Short Commands And Durable Jobs
 
 Use synchronous `bash` for fast, low-latency commands that should complete within
@@ -200,26 +211,30 @@ Safe to remove:
 - completed test jobs that no longer aid diagnosis
 - temporary build and copy directories
 - merged feature worktrees and local feature branches
+- obsolete uncommitted patch archives and stale audit bundles
+- intermediate switch scripts, logs, and cleanup timelines that are not needed
+  by the active rollback procedure
 
 Also fast-forward the local `main` reference to `origin/main` without disturbing
 an unrelated dirty checkout.
 
-Keep:
+Keep only the assets named by the current rollback plan:
 
 - the active release
-- the previous stable release
-- the exact pre-switch runtime backup
-- the final successful deployment record
-- the rollback script
+- the selected rollback release or exact pre-switch backup
+- the tested rollback script and its required target reference
+- the minimal final health or deployment state needed to verify recovery
 
-Write a cleanup summary and verify `/healthz` after cleanup.
+Verify `/healthz` after cleanup. Do not keep a separate cleanup narrative once
+the resulting state is clear and the cleanup has succeeded.
 
 ### Second Pass: After Real-Use Observation
 
 After the new release has handled several real long-running jobs and no recovery
-issues have appeared, remove redundant historical copies and old intermediate
-logs. Retain at least one previous stable release, the release tag, the final
-deployment summary, and a tested rollback procedure.
+issues have appeared, update the current rollback plan and remove every runtime
+copy, backup, log, or deployment artifact that the plan no longer references.
+Retain only the active release, the currently selected rollback target when one is
+still required, the release tag, and a tested rollback procedure.
 
 ## Project Boundaries
 

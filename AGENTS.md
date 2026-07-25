@@ -2,7 +2,8 @@
 
 This file is the project instruction index. Keep it short. Read the linked
 document only when the current task needs it, and keep detailed operational
-knowledge in `docs/` rather than expanding this file.
+knowledge in `docs/` rather than expanding this file. This repository documents
+the current canonical project state, not a narrative timeline.
 
 ## Mission
 
@@ -42,9 +43,14 @@ coding agent.
   atomic switch with automatic rollback.
 - Keep general capabilities in DevSpace core. Put product-specific workflows in
   the owning project or a separate plugin instead of hard-coding them here.
-- Preserve the previous stable runtime, the exact pre-switch backup, the final
-  deployment record, and the rollback script until the new release has passed a
-  real-use observation period.
+- The latest explicit user or project decision is canonical. Replace or remove
+  superseded guidance instead of preserving duplicate rules, obsolete patches,
+  or historical narrative in project documentation. Use Git commits, PRs, and
+  release tags for committed history.
+- Keep rollback assets only while they are part of the current recovery plan.
+  After they are superseded or no longer needed, remove redundant runtime copies,
+  intermediate logs, cleanup timelines, and local audit archives rather than
+  retaining them for historical interest.
 - Update the relevant document and this index whenever a change alters a trust
   boundary, operator workflow, durable-job behavior, runtime upgrade process, or
   recovery procedure.
