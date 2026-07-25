@@ -225,3 +225,20 @@ npm test
 npm run build
 npm run start
 ```
+
+## Reliable Long-Running Commands
+
+DevSpace 1.1 adds durable background Bash jobs for builds, tests, deployments,
+migrations, and downloads:
+
+- `bash_start` returns a `jobId` immediately and deduplicates retries by
+  caller-supplied `requestId`.
+- `bash_status` and `bash_logs` recover progress after connector or MCP session
+  replacement.
+- `bash_cancel` terminates the complete process group.
+- `bash_jobs` lists active and recent jobs after reconnecting.
+- `/healthz` reports the running version, commit, start time, PID, and active job
+  count.
+
+These tools do not add command filtering. After Owner approval, they run with the
+same trusted local OS-user authority as the synchronous shell tool.

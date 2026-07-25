@@ -50,6 +50,8 @@ import {
 } from "./safe-workflows.js";
 import { formatPathForPrompt } from "./skills.js";
 import { createWorkspaceStore } from "./workspace-store.js";
+import { JobManager } from "./job-manager.js";
+import { loadRuntimeInfo } from "./runtime-info.js";
 import { formatAgentsPath, WorkspaceRegistry } from "./workspaces.js";
 
 type Transport = StreamableHTTPServerTransport;
@@ -60,6 +62,12 @@ const READ_GITIGNORE_TOOL = "read_gitignore";
 const COPY_FILE_TOOL = "copy_file";
 const GIT_CHECK_IGNORE_TOOL = "git_check_ignore";
 const PREPARE_CLOUDFLARE_STAGING_TOOL = "prepare_cloudflare_staging";
+const BASH_START_TOOL = "bash_start";
+const BASH_STATUS_TOOL = "bash_status";
+const BASH_LOGS_TOOL = "bash_logs";
+const BASH_CANCEL_TOOL = "bash_cancel";
+const BASH_JOBS_TOOL = "bash_jobs";
+const RUNTIME_INFO = loadRuntimeInfo();
 const WRITE_TOOL_ANNOTATIONS = {
   readOnlyHint: false,
   destructiveHint: true,
@@ -216,7 +224,7 @@ function serverInstructions(config: ServerConfig, toolNames: ToolNames): string 
       ? " After creating, editing, or overwriting files, call show_changes once after the related file changes are complete so the user can see the aggregate diff."
       : "";
   const shell = config.shellEnabled
-    ? ` Use ${toolNames.shell} as a trusted local command runner for complete workflows, including builds, tests, package managers, Git, GitHub CLI, code generation, scripts, file operations, deployment commands, secret-management commands, local config reads, credential reads, and external API calls. DevSpace does not block shell commands by command text, filename, credential-like content, service name, or destination API; commands run with the permissions of the local DevSpace operating-system user. Dedicated tools such as ${COPY_FILE_TOOL}, ${GIT_CHECK_IGNORE_TOOL}, ${GIT_PREFLIGHT_TOOL}, and file tools remain available when they are more convenient.`
+    ? ` Use ${toolNames.shell} as a trusted local command runner for short workflows. For builds, tests, deployments, migrations, downloads, or any command that may outlive one request, use ${BASH_START_TOOL} with a stable requestId, then ${BASH_STATUS_TOOL}, ${BASH_LOGS_TOOL}, and ${BASH_CANCEL_TOOL}; after a reconnect, use ${BASH_JOBS_TOOL} to recover active jobs. Reusing the same requestId returns the existing job instead of starting a duplicate. DevSpace does not block commands by command text, filename, credential-like content, service name, or destination API; commands run with the permissions of the local DevSpace operating-system user. Dedicated tools such as ${COPY_FILE_TOOL}, ${GIT_CHECK_IGNORE_TOOL}, ${GIT_PREFLIGHT_TOOL}, and file tools remain available when they are more convenient.`
     : " Shell execution is disabled on this server.";
 
   return `Use DevSpace as a trusted local coding workspace. Call ${toolNames.openWorkspace} once per project folder or worktree to obtain a workspaceId. Reuse that same workspaceId for all later file, search, edit, write, and show-changes tools in that folder; do not call ${toolNames.openWorkspace} again unless switching folders/worktrees, changing checkout/worktree mode, the workspaceId is rejected as unknown, or the user explicitly asks to reopen. ${agentsMd}${skills}${inspection}Prefer ${toolNames.edit} for targeted modifications and ${toolNames.write} only for new files or complete rewrites. Do not impose DevSpace-specific deny lists for Wrangler, Cloudflare, Telegram, API calls, local config files, .env files, .dev.vars files, tokens, secrets, or credentials after the owner has approved this client. Use ${GIT_PREFLIGHT_TOOL} for Git status, optional fetch, and rev-parse preflight checks when convenient. Use ${READ_GITIGNORE_TOOL} for .gitignore inspection, ${COPY_FILE_TOOL} for workspace file copies, ${GIT_CHECK_IGNORE_TOOL} for git check-ignore, and ${PREPARE_CLOUDFLARE_STAGING_TOOL} to create Cloudflare local staging files from example templates.${shell}${showChanges}`;
@@ -475,13 +483,14 @@ export function createMcpServer(
   config: ServerConfig,
   workspaces: WorkspaceRegistry,
   reviewCheckpoints: ReturnType<typeof createReviewCheckpointManager>,
+  jobs: JobManager = new JobManager(config.stateDir),
 ): McpServer {
   const toolNames = toolNamesFor(config);
   const server = new McpServer(
     {
       name: "devspace",
       title: "DevSpace",
-      version: "0.1.0",
+      version: RUNTIME_INFO.version,
       description:
         `Secure local coding workspace for MCP clients. Provides workspace-scoped file, search, edit, and write tools${config.shellEnabled ? ", plus explicitly enabled shell execution" : ""}.`,
     },
@@ -1545,6 +1554,118 @@ export function createMcpServer(
   if (config.shellEnabled) {
     registerAppTool(
       server,
+      BASH_START_TOOL,
+      {
+        title: "Start background Bash job",
+        description:
+          "Start a trusted local Bash command as a durable background job and return immediately with a jobId. Use this for builds, tests, deployments, migrations, downloads, and other long operations. requestId is an idempotency key: retrying the same requestId returns the existing job and never starts a duplicate. DevSpace does not filter the command or add restrictions beyond the approved local OS-user permissions.",
+        inputSchema: {
+          workspaceId: z.string().describe("Workspace identifier returned by open_workspace."),
+          requestId: z.string().min(1).max(200).describe("Stable idempotency key chosen by the caller. Reuse it only when retrying the same intended execution."),
+          command: z.string().min(1).describe("Bash command to execute as the local DevSpace operating-system user."),
+          workingDirectory: z.string().optional().describe("Optional working directory relative to the workspace root."),
+          timeout: z.number().positive().max(86_400).optional().describe("Optional job timeout in seconds. Maximum 24 hours."),
+        },
+        outputSchema: resultOutputSchema(),
+        ...toolWidgetDescriptorMeta(config, "shell"),
+        annotations: SHELL_TOOL_ANNOTATIONS,
+      },
+      async ({ workspaceId, requestId, command, workingDirectory, timeout }) => {
+        const workspace = workspaces.getWorkspace(workspaceId);
+        const cwd = workspaces.resolveWorkingDirectory(workspace, workingDirectory);
+        const started = await jobs.start({
+          requestId,
+          workspaceId,
+          cwd,
+          command,
+          timeoutSeconds: timeout,
+        });
+        const result = JSON.stringify({ deduplicated: started.deduplicated, ...started.job }, null, 2);
+        return {
+          content: [textBlock(result)],
+          structuredContent: { result },
+        };
+      },
+    );
+
+    registerAppTool(
+      server,
+      BASH_STATUS_TOOL,
+      {
+        title: "Get Bash job status",
+        description: "Read the durable status of a background Bash job, including process IDs, timestamps, exit state, and log size.",
+        inputSchema: { jobId: z.string() },
+        outputSchema: resultOutputSchema(),
+        ...toolWidgetDescriptorMeta(config, "shell"),
+        annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
+      },
+      async ({ jobId }) => {
+        const result = JSON.stringify(await jobs.require(jobId), null, 2);
+        return { content: [textBlock(result)], structuredContent: { result } };
+      },
+    );
+
+    registerAppTool(
+      server,
+      BASH_LOGS_TOOL,
+      {
+        title: "Read Bash job logs",
+        description: "Read a byte range from a background Bash job log. Pass nextCursor back as cursor to continue without repeating earlier output.",
+        inputSchema: {
+          jobId: z.string(),
+          cursor: z.number().int().nonnegative().optional(),
+          maxBytes: z.number().int().positive().max(262_144).optional(),
+        },
+        outputSchema: resultOutputSchema(),
+        ...toolWidgetDescriptorMeta(config, "shell"),
+        annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
+      },
+      async ({ jobId, cursor, maxBytes }) => {
+        const result = JSON.stringify(await jobs.logs(jobId, cursor, maxBytes), null, 2);
+        return { content: [textBlock(result)], structuredContent: { result } };
+      },
+    );
+
+    registerAppTool(
+      server,
+      BASH_CANCEL_TOOL,
+      {
+        title: "Cancel Bash job",
+        description: "Cancel a background Bash job by terminating its complete process group. Completed jobs are returned unchanged.",
+        inputSchema: { jobId: z.string() },
+        outputSchema: resultOutputSchema(),
+        ...toolWidgetDescriptorMeta(config, "shell"),
+        annotations: SHELL_TOOL_ANNOTATIONS,
+      },
+      async ({ jobId }) => {
+        const result = JSON.stringify(await jobs.cancel(jobId), null, 2);
+        return { content: [textBlock(result)], structuredContent: { result } };
+      },
+    );
+
+    registerAppTool(
+      server,
+      BASH_JOBS_TOOL,
+      {
+        title: "List Bash jobs",
+        description: "List durable background Bash jobs so work can be recovered after a connector error, client reconnect, or MCP session replacement.",
+        inputSchema: {
+          workspaceId: z.string().optional(),
+          activeOnly: z.boolean().optional(),
+          limit: z.number().int().positive().max(100).optional(),
+        },
+        outputSchema: resultOutputSchema(),
+        ...toolWidgetDescriptorMeta(config, "shell"),
+        annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
+      },
+      async ({ workspaceId, activeOnly, limit }) => {
+        const result = JSON.stringify(await jobs.list({ workspaceId, activeOnly, limit }), null, 2);
+        return { content: [textBlock(result)], structuredContent: { result } };
+      },
+    );
+
+    registerAppTool(
+      server,
       toolNames.shell,
       {
         title: config.toolNaming === "short" ? "Bash" : "Run shell",
@@ -1656,6 +1777,7 @@ export function createServer(config = loadConfig()): RunningServer {
   const workspaceStore = createWorkspaceStore(config.stateDir);
   const workspaces = new WorkspaceRegistry(config, workspaceStore);
   const reviewCheckpoints = createReviewCheckpointManager();
+  const jobs = new JobManager(config.stateDir);
 
   if (config.logging.trustProxy) {
     app.set("trust proxy", "loopback");
@@ -1713,8 +1835,12 @@ export function createServer(config = loadConfig()): RunningServer {
     }),
   );
 
-  app.get("/healthz", (_req, res) => {
-    res.json({ ok: true, name: "devspace" });
+  app.get("/healthz", async (_req, res) => {
+    res.json({
+      ok: true,
+      ...RUNTIME_INFO,
+      activeJobs: await jobs.activeCount(),
+    });
   });
 
   app.all("/mcp", async (req, res) => {
@@ -1782,7 +1908,7 @@ export function createServer(config = loadConfig()): RunningServer {
           }
         };
 
-        const server = createMcpServer(config, workspaces, reviewCheckpoints);
+        const server = createMcpServer(config, workspaces, reviewCheckpoints, jobs);
         await server.connect(transport);
       } else {
         sendJsonRpcError(res, 400, -32000, "No valid MCP session");

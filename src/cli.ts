@@ -6,6 +6,7 @@ import * as prompts from "@clack/prompts";
 import { getShellConfig } from "@earendil-works/pi-coding-agent";
 import { satisfies } from "semver";
 import { loadConfig } from "./config.js";
+import { loadRuntimeInfo } from "./runtime-info.js";
 import {
   generateOwnerToken,
   loadDevspaceFiles,
@@ -204,6 +205,9 @@ async function serve(): Promise<void> {
 
 async function runDoctor(): Promise<void> {
   const files = loadDevspaceFiles();
+  const runtime = loadRuntimeInfo();
+  console.log(`DevSpace: ${runtime.version} (${runtime.commit})`);
+  console.log(`Build time: ${runtime.builtAt ?? "unknown"}`);
   console.log(`Config dir: ${files.dir}`);
   console.log(`Config file: ${files.configExists ? files.configPath : "missing"}`);
   console.log(`Auth file: ${files.authExists ? files.authPath : "missing"}`);
