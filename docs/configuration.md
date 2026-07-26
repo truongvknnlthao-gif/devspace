@@ -3,6 +3,9 @@
 DevSpace can be configured through `devspace init`, persisted config files, or
 environment variables.
 
+The examples use `node dist/cli.js` from a built checkout of this repository.
+See the [Setup Guide](./setup.md) for installation.
+
 The default files are:
 
 ```text
@@ -10,20 +13,24 @@ The default files are:
 ~/.devspace/auth.json
 ```
 
+For values that support both forms, an environment variable overrides the
+persisted config. Persisted config overrides the built-in default. The Owner
+password is read from `auth.json` unless `DEVSPACE_OAUTH_OWNER_TOKEN` is set.
+
 Use another config directory with:
 
 ```bash
-DEVSPACE_CONFIG_DIR=/path/to/config npx @waishnav/devspace serve
+DEVSPACE_CONFIG_DIR=/path/to/config node dist/cli.js serve
 ```
 
 ## Commands
 
 ```bash
-npx @waishnav/devspace init
-npx @waishnav/devspace serve
-npx @waishnav/devspace doctor
-npx @waishnav/devspace config get
-npx @waishnav/devspace config set publicBaseUrl https://devspace.example.com
+node dist/cli.js init
+node dist/cli.js serve
+node dist/cli.js doctor
+node dist/cli.js config get
+node dist/cli.js config set publicBaseUrl https://devspace.example.com
 ```
 
 ## Core Environment Variables
@@ -73,7 +80,7 @@ DevSpace exposes one canonical short-name tool surface:
 Shell execution is enabled separately:
 
 ```bash
-DEVSPACE_SHELL_ENABLED=1 npx @waishnav/devspace serve
+DEVSPACE_SHELL_ENABLED=1 node dist/cli.js serve
 ```
 
 Enable it after approving a trusted client with the Owner password. Commands
@@ -123,7 +130,7 @@ DEVSPACE_PUBLIC_BASE_URL="https://devspace.example.com" \
 DEVSPACE_WORKTREE_ROOT="$HOME/.devspace/worktrees" \
 DEVSPACE_SHELL_ENABLED="0" \
 DEVSPACE_WIDGETS="full" \
-npx @waishnav/devspace serve
+node dist/cli.js serve
 ```
 
 The environment assignments must be part of the same command invocation, or
