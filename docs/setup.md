@@ -5,7 +5,7 @@ DevSpace server built from this repository.
 
 ## Requirements
 
-- Node `>=20.12 <27`; Node 22 LTS is recommended
+- Node `>=24 <25`
 - npm
 - Git
 - Bash
@@ -29,6 +29,10 @@ cd devspace
 npm ci
 npm run build
 ```
+
+The repository includes `.nvmrc` with `24`. If you use another version manager,
+select Node 24 before installing dependencies so native modules are built for
+the same runtime used by the service.
 
 The commands below use `node dist/cli.js` from the repository root so that the
 running CLI is unambiguously this checkout. The separately published upstream

@@ -2,7 +2,7 @@
 set -eu
 
 DEVSPACE_RUNTIME="__HOME__/.local/share/devspace-runtime"
-DEVSPACE_NODE="__NODE_BINARY__"
+DEVSPACE_NODE="__NODE_24_BINARY__"
 
 export DEVSPACE_SHELL_ENABLED=1
 export DEVSPACE_WIDGETS=changes

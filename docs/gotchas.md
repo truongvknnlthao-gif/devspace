@@ -17,7 +17,7 @@ directory is on `PATH`.
 
 ## Unsupported Node Version
 
-DevSpace requires Node `>=20.12 <27`.
+DevSpace requires Node `>=24 <25`.
 
 Check:
 
@@ -25,8 +25,9 @@ Check:
 node --version
 ```
 
-Install Node 22 LTS with your preferred version manager such as `nvm`, `fnm`, or
-`mise`.
+Install Node 24 with your preferred version manager such as `nvm`, `fnm`, or
+`mise`. Reinstall dependencies after changing Node versions so native modules
+use the Node 24 ABI.
 
 ## `better-sqlite3` Could Not Load
 
