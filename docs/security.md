@@ -98,7 +98,7 @@ The distributable configuration keeps the shell tool disabled until the owner
 explicitly enables it:
 
 ```bash
-DEVSPACE_SHELL_ENABLED=1 npx @waishnav/devspace serve
+DEVSPACE_SHELL_ENABLED=1 node dist/cli.js serve
 ```
 
 After OAuth approval, shell commands run as local commands and can do what the
