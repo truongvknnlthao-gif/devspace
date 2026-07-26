@@ -8,7 +8,7 @@ DevSpace server built from this repository.
 - Node `>=20.12 <27`; Node 22 LTS is recommended
 - npm
 - Git
-- Bash, including Git Bash or WSL on Windows
+- Bash
 - a public HTTPS URL that forwards to the local DevSpace server
 
 DevSpace does not create the public tunnel. Use Cloudflare Tunnel, ngrok,
@@ -50,10 +50,6 @@ Examples:
 
 ```text
 /Users/alice/dev,/Users/alice/work
-```
-
-```text
-C:\Users\alice\dev,C:\Users\alice\work
 ```
 
 ### Local Port
@@ -101,11 +97,15 @@ DEVSPACE_SHELL_ENABLED=1 node dist/cli.js serve
 Verify the public endpoint before creating the ChatGPT app:
 
 ```bash
-curl https://your-devspace-host.example.com/healthz
+npm run verify:public -- https://your-devspace-host.example.com
 ```
 
-The response identifies the running DevSpace version and source commit. If a
-temporary tunnel URL changes, override it for one run:
+This checks runtime identity, OAuth discovery, PKCE, scope, and the
+unauthenticated MCP boundary. See
+[Public OAuth And MCP Verification](./public-oauth-verification.md) for the
+authenticated end-to-end checklist.
+
+If a temporary tunnel URL changes, override it for one run:
 
 ```bash
 DEVSPACE_PUBLIC_BASE_URL="https://new-tunnel.example.com" node dist/cli.js serve

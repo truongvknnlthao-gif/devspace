@@ -1,6 +1,7 @@
 {
-  "name": "@waishnav/devspace",
-  "version": "1.2.0",
+  "name": "devspace-local",
+  "version": "1.2.1",
+  "private": true,
   "description": "Expose a secure local coding workspace through an MCP server.",
   "type": "module",
   "main": "dist/server.js",
@@ -17,17 +18,15 @@
     "README.md",
     "build-info.json"
   ],
-  "publishConfig": {
-    "access": "public"
-  },
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
     "build": "npm run clean && node scripts/write-build-info.mjs && npm run build:app && tsc -p tsconfig.build.json",
     "build:app": "vite build",
     "dev": "node scripts/dev-server.mjs",
     "start": "node dist/cli.js serve",
-    "test": "tsx src/config.test.ts && tsx src/roots.test.ts && tsx src/security-boundaries.test.ts && tsx src/tool-surface.test.ts && tsx src/workspaces.test.ts && tsx src/review-checkpoints.test.ts && tsx src/oauth-store.test.ts && tsx src/job-manager.test.ts && tsx src/job-tools.test.ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "test": "tsx src/config.test.ts && tsx src/mcp-sessions.test.ts && tsx src/server-shutdown.test.ts && tsx src/roots.test.ts && tsx src/security-boundaries.test.ts && tsx src/tool-surface.test.ts && tsx src/workspaces.test.ts && tsx src/review-checkpoints.test.ts && tsx src/oauth-store.test.ts && tsx src/job-manager.test.ts && tsx src/job-tools.test.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "verify:public": "node scripts/verify-public.mjs"
   },
   "keywords": [],
   "author": "",
@@ -59,7 +58,6 @@
     "vite": "^8.0.14"
   },
   "overrides": {
-    "protobufjs": "7.6.4",
     "ws": "8.21.0",
     "undici": "8.5.0"
   }
