@@ -115,6 +115,24 @@ The shell tool is for commands that belong in a terminal:
 The edit/write tools remain useful for precise changes and review cards, but
 they are not a restriction on shell usage.
 
+## macOS Action Order
+
+Use the most structured interface that can complete and verify the task:
+
+1. Use DevSpace file tools for workspace reads and precise edits.
+2. Use `bash` with an application-specific CLI or a deterministic macOS command
+   such as `open`, `osascript`, `shortcuts`, or `defaults`.
+3. When the MCP host provides a matching connector or browser tool, use its
+   semantic API instead of screen coordinates.
+4. Use `screen_capture` to observe or verify visible state when command output
+   is insufficient.
+5. Use Accessibility actions, simulated mouse input, or simulated keyboard
+   input only when the application exposes no reliable structured interface.
+
+For directories outside the configured workspace roots, structured file tools
+remain unavailable. An owner-approved client may use enabled shell execution
+with the permissions of the DevSpace operating-system user.
+
 ## Durable Shell Jobs
 
 Use synchronous `bash` for short commands that are expected to finish within one

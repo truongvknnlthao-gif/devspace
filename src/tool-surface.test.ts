@@ -86,6 +86,8 @@ async function listTools(config: ReturnType<typeof loadConfig>): Promise<Map<str
   try {
     await server.connect(serverTransport);
     await client.connect(clientTransport);
+    assert.match(client.getInstructions() ?? "", /deterministic command-line or application APIs/);
+    assert.match(client.getInstructions() ?? "", /mouse and keyboard automation is a last resort/);
     return new Map((await client.listTools()).tools.map((tool) => [tool.name, tool]));
   } finally {
     await client.close();

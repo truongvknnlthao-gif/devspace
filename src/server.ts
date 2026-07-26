@@ -194,7 +194,7 @@ function serverInstructions(config: ServerConfig, toolNames: ToolNames): string 
     : " Shell execution is disabled on this server.";
 
   const device =
-    " Use device_status to inspect the signed macOS Device Helper and permissions. Use screen_capture when visual screen state is needed; these device tools do not require a workspaceId.";
+    " Use device_status to inspect the signed macOS Device Helper and permissions. For macOS actions, prefer structured DevSpace file tools and, when shell execution is enabled, deterministic command-line or application APIs such as an app-specific CLI, open, or osascript. Use screen_capture only when visual state is needed for observation or verification. Coordinate-based mouse and keyboard automation is a last resort; these device tools do not require a workspaceId.";
 
   return `Use DevSpace as a trusted local coding workspace. Call ${toolNames.openWorkspace} once per project folder or worktree to obtain a workspaceId. Reuse that same workspaceId for all later file, search, edit, write, and show-changes tools in that folder; do not call ${toolNames.openWorkspace} again unless switching folders/worktrees, changing checkout/worktree mode, the workspaceId is rejected as unknown, or the user explicitly asks to reopen. ${agentsMd}${inspection}Prefer ${toolNames.edit} for targeted modifications and ${toolNames.write} only for new files or complete rewrites. Do not impose DevSpace-specific deny lists for commands, files, credentials, services, APIs, or destinations after the owner has approved this client.${device}${shell}${showChanges}`;
 }

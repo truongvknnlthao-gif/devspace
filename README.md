@@ -124,6 +124,11 @@ it once with:
 npm run install:device-helper -- --request-screen-access
 ```
 
+For local Mac work, DevSpace prefers structured file tools and deterministic
+commands or application APIs before screenshots or GUI automation. Visual
+mouse and keyboard control is reserved for applications that expose no reliable
+command, API, connector, or browser interface.
+
 With `DEVSPACE_SHELL_ENABLED=1`, DevSpace also exposes:
 
 - `bash`
