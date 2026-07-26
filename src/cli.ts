@@ -5,7 +5,9 @@ import { resolve } from "node:path";
 import * as prompts from "@clack/prompts";
 import { getShellConfig } from "@earendil-works/pi-coding-agent";
 import { satisfies } from "semver";
+import { ChromeController } from "./chrome-control.js";
 import { loadConfig } from "./config.js";
+import { JobManager } from "./job-manager.js";
 import { loadRuntimeInfo } from "./runtime-info.js";
 import {
   generateOwnerToken,
@@ -191,6 +193,7 @@ async function serve(): Promise<void> {
     }
     console.log("auth: Owner password approval required");
     console.log(`shell execution: ${config.shellEnabled ? "enabled" : "disabled"}`);
+    console.log(`chrome control: ${config.chrome.enabled ? "enabled" : "disabled"}`);
     console.log(`logging: ${config.logging.level} ${config.logging.format}`);
   });
 
@@ -233,6 +236,24 @@ async function runDoctor(): Promise<void> {
     console.log(`Allowed roots: ${config.allowedRoots.join(", ")}`);
     console.log(`Allowed hosts: ${config.allowedHosts.join(", ")}`);
     console.log(`Shell execution: ${config.shellEnabled ? "enabled" : "disabled"}`);
+    console.log(`Chrome control: ${config.chrome.enabled ? "enabled" : "disabled"}`);
+    if (config.chrome.enabled) {
+      const chrome = new ChromeController(
+        config.chrome,
+        config.stateDir,
+        new JobManager(config.stateDir),
+      );
+      const status = await chrome.status();
+      console.log(`Chrome control ready: ${status.ready ? "yes" : "no"}`);
+      console.log(
+        `Chrome Codex CLI: ${status.codex.available ? status.codex.version : status.codex.error}`,
+      );
+      console.log(
+        `Chrome extension: ${status.extension?.enabled ? `enabled (${status.extension.selectedProfileDirectory ?? "unknown profile"})` : "not ready"}`,
+      );
+      console.log(`Chrome native host: ${status.nativeHost?.correct ? "ready" : "not ready"}`);
+      console.log(`Google Chrome: ${status.chrome?.running ? "running" : "not running"}`);
+    }
   } catch (error) {
     console.log(`Config status: ${error instanceof Error ? error.message : String(error)}`);
   }

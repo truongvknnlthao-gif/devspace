@@ -13,7 +13,9 @@
 DevSpace is a self-hosted MCP server that lets an approved ChatGPT developer
 app work directly with local projects. It provides structured file tools,
 optional shell execution, Git worktree support, durable background jobs, and
-ChatGPT Apps-compatible tool cards.
+ChatGPT Apps-compatible tool cards. On macOS it can also expose a signed
+screenshot helper and supervised access to the installed official Codex Chrome
+component.
 
 This repository is the maintained fork used by
 [`truongvknnlthao-gif/devspace`](https://github.com/truongvknnlthao-gif/devspace).
@@ -22,7 +24,7 @@ the authority for this fork.
 
 ## Current Version
 
-The source version is `1.2.1`. A running server reports its exact version,
+The source version is `1.3.3`. A running server reports its exact version,
 commit, build time, start time, PID, and active job count:
 
 ```bash
@@ -30,7 +32,7 @@ curl https://your-devspace-host.example.com/healthz
 ```
 
 ChatGPT's labels such as `dev-0` are developer-app revision numbers. They are
-not DevSpace package versions and are not expected to match `1.2.1`.
+not DevSpace package versions and are not expected to match `1.3.3`.
 
 This fork is a private source package named `devspace-local`. The npm package
 `@waishnav/devspace` belongs to the upstream project and is not an installation
@@ -110,15 +112,40 @@ reconnection workflow.
 
 The default structured tools are:
 
+- `device_status`
+- `screen_capture`
 - `open_workspace`
 - `read`, `write`, and `edit`
 - `grep`, `glob`, and `ls`
+
+`device_status` and `screen_capture` use a separately signed macOS helper so
+Screen Recording permission belongs to a stable application identity. Install
+it once with:
+
+```bash
+npm run install:device-helper -- --request-screen-access
+```
+
+For local Mac work, DevSpace prefers structured file tools and deterministic
+commands or application APIs before screenshots or GUI automation. Visual
+mouse and keyboard control is reserved for applications that expose no reliable
+command, API, connector, or browser interface.
 
 With `DEVSPACE_SHELL_ENABLED=1`, DevSpace also exposes:
 
 - `bash`
 - `bash_start`, `bash_status`, `bash_logs`, and `bash_cancel`
 - `bash_jobs`
+
+With `DEVSPACE_CHROME_ENABLED=1`, DevSpace also exposes:
+
+- `chrome_status`
+- `chrome_task_start`, `chrome_task_status`, and `chrome_task_cancel`
+
+This path keeps DevSpace in control of OAuth, task identity, idempotency,
+timeouts, cancellation, and final results while the real local Codex CLI uses
+the installed official Chrome extension/native host. DevSpace does not copy or
+modify OpenAI's signed native host.
 
 With `DEVSPACE_WIDGETS=changes`, `show_changes` provides an aggregate review
 view. DevSpace also supports isolated Git worktrees and discovers project

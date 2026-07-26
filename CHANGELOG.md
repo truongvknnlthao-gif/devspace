@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.3.3 - 2026-07-26
+
+- Make immediate durable-job cancellation wait for the runner to record a
+  terminal state instead of terminating it during startup.
+- Reconcile orphaned jobs whose runners exited before writing state, including
+  cancellation requests created by an earlier runtime.
+
+## 1.3.2 - 2026-07-26
+
+- Add optional DevSpace-managed Chrome status and durable high-level browser
+  tasks through the real local Codex CLI and installed official Chrome
+  extension/native host.
+- Keep Chrome task instructions out of command metadata, isolate raw Chrome
+  event logs from Bash job tools, and serialize active Chrome tasks.
+
+## 1.3.0 - 2026-07-26
+
+- Add a separately signed macOS Device Helper with a stable bundle identity.
+- Add workspace-independent `device_status` and `screen_capture` MCP tools.
+- Keep screenshots in private temporary storage and delete them after each
+  response.
+- Defer Accessibility actions such as clicking and typing from this phase.
+
 ## 1.2.1 - 2026-07-25
 
 - Bound idle MCP session retention and await transport cleanup during shutdown.

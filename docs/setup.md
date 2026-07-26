@@ -9,10 +9,15 @@ DevSpace server built from this repository.
 - npm
 - Git
 - Bash
+- Xcode command-line tools and an Apple Development signing identity for the
+  optional macOS Device Helper
 - a public HTTPS URL that forwards to the local DevSpace server
 
 DevSpace does not create the public tunnel. Use Cloudflare Tunnel, ngrok,
 Pinggy, Tailscale Funnel, or an HTTPS reverse proxy you control.
+For a persistent Cloudflare Tunnel on macOS, use the sanitized templates and
+provisioning checklist in
+[`deploy/macos`](../deploy/macos/README.md).
 
 ## Install The Maintained Version
 
@@ -34,6 +39,19 @@ Initialize DevSpace:
 ```bash
 node dist/cli.js init
 ```
+
+Install the fixed-identity macOS Device Helper and request Screen Recording
+permission:
+
+```bash
+npm run install:device-helper -- --request-screen-access
+```
+
+The helper is installed at
+`~/Applications/DevSpace Device Helper.app`. DevSpace invokes its signed
+executable directly for `device_status` and `screen_capture`. Keep the same
+bundle identifier and signing identity across upgrades so macOS can retain the
+permission grant.
 
 The setup flow asks one question at a time.
 
@@ -134,8 +152,9 @@ Use ChatGPT's personal developer-app flow for a self-hosted DevSpace server:
 7. Select **Connect** or **Sign in**. On the DevSpace authorization page, enter
    the Owner password and approve the client.
 8. Return to the plugin details, confirm **Connected**, and select **Refresh**.
-   The Actions section should list tools such as `open_workspace`, `read`,
-   `edit`, and, when enabled, `bash`.
+   The Actions section should list tools such as `device_status`,
+   `screen_capture`, `open_workspace`, `read`, `edit`, and, when enabled,
+   `bash`.
 
 Keep the Owner password out of the app name, description, URL, screenshots, and
 logs. Enter it only on the DevSpace authorization page.

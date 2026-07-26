@@ -1,12 +1,15 @@
 import { closeSync, openSync } from "node:fs";
-import { readFile, rename, writeFile } from "node:fs/promises";
+import { readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
 
 interface RunnerInput {
   jobId: string;
   cwd: string;
-  commandFile: string;
+  commandFile?: string;
+  executable?: string;
+  arguments?: string[];
+  stdinFile?: string;
   logFile: string;
   stateFile: string;
   cancelFile: string;
@@ -27,19 +30,43 @@ async function main(): Promise<void> {
   const inputPath = process.argv[2];
   if (!inputPath) throw new Error("Job runner input path is required.");
   const input = JSON.parse(await readFile(inputPath, "utf8")) as RunnerInput;
-  const command = await readFile(input.commandFile, "utf8");
+  if (!input.commandFile && !input.executable) {
+    throw new Error("Job runner requires commandFile or executable.");
+  }
   const startedAt = new Date().toISOString();
+  if (await fileExists(input.cancelFile)) {
+    await writeState(input.stateFile, {
+      status: "canceled",
+      startedAt,
+      completedAt: startedAt,
+      exitCode: null,
+      signal: null,
+    });
+    return;
+  }
+  const command = input.commandFile
+    ? await readFile(input.commandFile, "utf8")
+    : undefined;
   const logFd = openSync(input.logFile, "a");
+  const stdinFd = input.stdinFile ? openSync(input.stdinFile, "r") : undefined;
   let timedOut = false;
   let timeoutHandle: NodeJS.Timeout | undefined;
   let killHandle: NodeJS.Timeout | undefined;
 
-  const child = spawn("/bin/bash", ["-lc", command], {
-    cwd: input.cwd,
-    detached: true,
-    env: process.env,
-    stdio: ["ignore", logFd, logFd],
-  });
+  const child = spawn(
+    input.executable ?? "/bin/bash",
+    input.executable ? (input.arguments ?? []) : ["-lc", command!],
+    {
+      cwd: input.cwd,
+      detached: true,
+      env: process.env,
+      stdio: [stdinFd ?? "ignore", logFd, logFd],
+    },
+  );
+  if (stdinFd !== undefined) closeSync(stdinFd);
+  if (input.stdinFile) {
+    await unlink(input.stdinFile).catch(() => undefined);
+  }
 
   await writeState(input.stateFile, {
     status: "running",

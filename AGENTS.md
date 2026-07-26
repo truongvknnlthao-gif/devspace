@@ -23,8 +23,9 @@ Read only the route needed for the current task.
 | Change environment variables, OAuth, widgets, project instructions, or logging | `docs/configuration.md` |
 | Use workspaces, worktrees, project instructions, file tools, shell tools, or durable jobs | `docs/chatgpt-coding-workflow.md` |
 | Review trust boundaries, shell authority, OAuth, tunnels, worktrees, or local state protection | `docs/security.md` |
+| Change macOS Device Helper, screen capture, command-based device actions, or official Chrome control | `README.md`, `docs/configuration.md`, `docs/security.md`, and `docs/runtime-operations.md` |
 | Diagnose Node ABI, tunnels, hosts, OAuth, unknown workspaces, worktrees, or connector 502 errors | `docs/gotchas.md` |
-| Build, release, upgrade, roll back, or clean a running DevSpace installation | `docs/runtime-operations.md` |
+| Build, release, upgrade, roll back, clean, or change the macOS service and Cloudflare Tunnel deployment | `docs/runtime-operations.md` and `deploy/macos/README.md` |
 | Review upstream changes, dependency updates, fork identity, or release provenance | `docs/fork-maintenance.md` |
 | Verify a public deployment and ChatGPT Personal OAuth connection | `docs/public-oauth-verification.md` |
 

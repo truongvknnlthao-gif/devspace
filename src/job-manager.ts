@@ -25,6 +25,7 @@ export interface JobRecord {
   jobId: string;
   requestId: string;
   workspaceId: string;
+  kind?: string;
   cwd: string;
   command: string;
   timeoutSeconds?: number;
@@ -43,8 +44,21 @@ export interface JobRecord {
 export interface StartJobInput {
   requestId: string;
   workspaceId: string;
+  kind?: string;
   cwd: string;
   command: string;
+  timeoutSeconds?: number;
+}
+
+export interface StartProcessJobInput {
+  requestId: string;
+  workspaceId: string;
+  kind?: string;
+  cwd: string;
+  executable: string;
+  arguments?: string[];
+  stdin?: string;
+  displayCommand: string;
   timeoutSeconds?: number;
 }
 
@@ -61,6 +75,7 @@ interface JobMetadata {
   jobId: string;
   requestId: string;
   workspaceId: string;
+  kind?: string;
   cwd: string;
   command: string;
   timeoutSeconds?: number;
@@ -89,6 +104,45 @@ export class JobManager {
   }
 
   async start(input: StartJobInput): Promise<{ job: JobRecord; deduplicated: boolean }> {
+    return this.startInternal({
+      requestId: input.requestId,
+      workspaceId: input.workspaceId,
+      kind: input.kind,
+      cwd: input.cwd,
+      command: input.command,
+      displayCommand: input.command,
+      timeoutSeconds: input.timeoutSeconds,
+    });
+  }
+
+  async startProcess(
+    input: StartProcessJobInput,
+  ): Promise<{ job: JobRecord; deduplicated: boolean }> {
+    return this.startInternal({
+      requestId: input.requestId,
+      workspaceId: input.workspaceId,
+      kind: input.kind,
+      cwd: input.cwd,
+      executable: input.executable,
+      arguments: input.arguments,
+      stdin: input.stdin,
+      displayCommand: input.displayCommand,
+      timeoutSeconds: input.timeoutSeconds,
+    });
+  }
+
+  private async startInternal(input: {
+    requestId: string;
+    workspaceId: string;
+    kind?: string;
+    cwd: string;
+    command?: string;
+    executable?: string;
+    arguments?: string[];
+    stdin?: string;
+    displayCommand: string;
+    timeoutSeconds?: number;
+  }): Promise<{ job: JobRecord; deduplicated: boolean }> {
     await this.initialize();
     const normalizedRequestId = input.requestId.trim();
     if (!normalizedRequestId) throw new Error("requestId is required for reliable job deduplication.");
@@ -108,19 +162,32 @@ export class JobManager {
       jobId,
       requestId: normalizedRequestId,
       workspaceId: input.workspaceId,
+      kind: input.kind,
       cwd: input.cwd,
-      command: input.command,
+      command: input.displayCommand,
       timeoutSeconds: input.timeoutSeconds,
       status: "starting",
       createdAt: new Date().toISOString(),
     };
-    await writeAtomic(paths.commandFile, input.command, 0o600);
+    if (input.command !== undefined) {
+      await writeAtomic(paths.commandFile, input.command, 0o600);
+    }
+    if (input.stdin !== undefined) {
+      await writeAtomic(paths.stdinFile, input.stdin, 0o600);
+    }
     await writeAtomic(paths.logFile, "", 0o600);
     await writeAtomic(paths.metadataFile, `${JSON.stringify(metadata, null, 2)}\n`, 0o600);
     await writeAtomic(paths.runnerInputFile, `${JSON.stringify({
       jobId,
       cwd: input.cwd,
-      commandFile: paths.commandFile,
+      ...(input.command !== undefined ? { commandFile: paths.commandFile } : {}),
+      ...(input.executable !== undefined
+        ? {
+            executable: input.executable,
+            arguments: input.arguments ?? [],
+          }
+        : {}),
+      ...(input.stdin !== undefined ? { stdinFile: paths.stdinFile } : {}),
       logFile: paths.logFile,
       stateFile: paths.stateFile,
       cancelFile: paths.cancelFile,
@@ -156,6 +223,23 @@ export class JobManager {
       runnerState = JSON.parse(await readFile(paths.stateFile, "utf8")) as RunnerState;
     } catch {
       runnerState = undefined;
+    }
+    if (!runnerState && metadata.runnerPid && !isRunnerAlive(metadata.runnerPid)) {
+      try {
+        runnerState = JSON.parse(await readFile(paths.stateFile, "utf8")) as RunnerState;
+      } catch {
+        const canceled = existsSync(paths.cancelFile);
+        runnerState = {
+          status: canceled ? "canceled" : "failed",
+          startedAt: metadata.createdAt,
+          completedAt: new Date().toISOString(),
+          exitCode: null,
+          signal: canceled
+            ? "runner exited before recording cancellation"
+            : "runner exited before writing state",
+        };
+        await writeAtomic(paths.stateFile, `${JSON.stringify(runnerState, null, 2)}\n`, 0o600);
+      }
     }
     const logBytes = await fileSize(paths.logFile);
 
@@ -227,27 +311,30 @@ export class JobManager {
     if (!isActive(job.status)) return job;
     await writeAtomic(paths.cancelFile, `${new Date().toISOString()}\n`, 0o600);
 
-    for (let attempt = 0; attempt < 10 && !job.processGroupId; attempt += 1) {
-      await sleep(100);
-      job = await this.require(jobId);
-    }
-
-    const processGroupId = job.processGroupId ?? job.childPid;
-    if (processGroupId) {
-      signalProcessGroup(processGroupId, "SIGTERM");
-      await sleep(500);
-      if (isProcessGroupAlive(processGroupId)) signalProcessGroup(processGroupId, "SIGKILL");
-    } else if (job.runnerPid) {
-      signalProcess(job.runnerPid, "SIGTERM");
-    }
-
-    for (let attempt = 0; attempt < 30; attempt += 1) {
-      await sleep(100);
+    let signaledProcessGroup: number | undefined;
+    let forceKillAt = 0;
+    for (let attempt = 0; attempt < 100; attempt += 1) {
       job = await this.require(jobId);
       if (!isActive(job.status)) return job;
+
+      const processGroupId = job.processGroupId ?? job.childPid;
+      if (processGroupId && signaledProcessGroup !== processGroupId) {
+        signalProcessGroup(processGroupId, "SIGTERM");
+        signaledProcessGroup = processGroupId;
+        forceKillAt = Date.now() + 500;
+      } else if (
+        signaledProcessGroup
+        && Date.now() >= forceKillAt
+        && isProcessGroupAlive(signaledProcessGroup)
+      ) {
+        signalProcessGroup(signaledProcessGroup, "SIGKILL");
+        forceKillAt = Number.POSITIVE_INFINITY;
+      }
+
+      await sleep(100);
     }
 
-    return job;
+    return this.require(jobId);
   }
 
   private async initialize(): Promise<void> {
@@ -280,6 +367,7 @@ export class JobManager {
       metadataFile: join(root, "job.json"),
       runnerInputFile: join(root, "runner-input.json"),
       commandFile: join(root, "command.sh"),
+      stdinFile: join(root, "stdin"),
       logFile: join(root, "output.log"),
       stateFile: join(root, "state.json"),
       cancelFile: join(root, "cancel-requested"),
@@ -307,11 +395,13 @@ function signalProcessGroup(pid: number, signal: NodeJS.Signals): void {
   }
 }
 
-function signalProcess(pid: number, signal: NodeJS.Signals): void {
+function isRunnerAlive(pid: number): boolean {
   try {
-    process.kill(pid, signal);
+    process.kill(pid, 0);
+    process.kill(-pid, 0);
+    return true;
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
+    return (error as NodeJS.ErrnoException).code !== "ESRCH";
   }
 }
 

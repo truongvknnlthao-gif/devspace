@@ -77,6 +77,11 @@ should expose at least:
 Record the complete health response before and after an upgrade. Do not infer the
 running version from a checkout, branch name, package file, or symlink alone.
 
+The macOS Device Helper is intentionally outside the versioned Node runtime at
+`~/Applications/DevSpace Device Helper.app`. Preserve its bundle identifier,
+signing identity, and stable path when updating it. Validate the helper's code
+signature and `device_status` separately from `/healthz`.
+
 ## Release Layout
 
 Use versioned, immutable runtime directories. A typical layout is:
@@ -173,6 +178,23 @@ for the expected version, commit, port, and authentication behavior.
 
 If any required check fails within the defined window, restore the previous
 runtime target and restart automatically.
+
+The standard production restart health window is 180 seconds, polled once per
+second. On the local macOS installation, keep the canonical value in:
+
+```text
+~/.local/state/devspace/runtime/policy.conf
+```
+
+with:
+
+```text
+DEVSPACE_RESTART_HEALTH_TIMEOUT_SECONDS=180
+```
+
+Both switch and rollback scripts must read that value and retain 180 seconds as
+their fallback. A shorter override may be used for isolated tests, but not for a
+production cutover.
 
 Do not treat a temporary connector failure during the restart window as proof of
 upgrade failure. Read the external switch status and local health result.

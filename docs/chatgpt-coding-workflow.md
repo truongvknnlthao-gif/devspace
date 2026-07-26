@@ -84,6 +84,8 @@ DevSpace uses one canonical short-name surface:
 - `grep`, `glob`, and `ls`
 - `bash`, `bash_start`, `bash_status`, `bash_logs`, `bash_cancel`, and
   `bash_jobs` when shell execution is enabled
+- `chrome_status`, `chrome_task_start`, `chrome_task_status`, and
+  `chrome_task_cancel` when supervised Chrome control is enabled
 - `show_changes` when `DEVSPACE_WIDGETS=changes`
 
 Use the structured file and search tools when they make the operation clearer.
@@ -114,6 +116,52 @@ The shell tool is for commands that belong in a terminal:
 
 The edit/write tools remain useful for precise changes and review cards, but
 they are not a restriction on shell usage.
+
+## Chrome Through DevSpace
+
+When a workflow depends on the user's existing Chrome login state, keep
+DevSpace as the single control plane:
+
+1. Call `chrome_status` and require `ready: true`.
+2. Call `chrome_task_start` once with the complete desired result, boundaries,
+   a stable `requestId`, and `mode=observe` or `mode=act`.
+3. Save the returned `taskId`.
+4. Poll `chrome_task_status` until it is terminal.
+5. Use `chrome_task_cancel` if the user stops the workflow.
+
+Internally the route is:
+
+```text
+ChatGPT Web
+  -> DevSpace OAuth and Chrome task manager
+  -> local Codex CLI
+  -> official Chrome plugin and native host
+  -> official Chrome extension
+  -> the user's Chrome session
+```
+
+Submit one high-level workflow instead of remote click/type calls. This keeps
+session setup, retries, timeouts, cancellation, and final-result filtering
+inside DevSpace while allowing the official Chrome component to perform the
+browser interaction.
+
+## macOS Action Order
+
+Use the most structured interface that can complete and verify the task:
+
+1. Use DevSpace file tools for workspace reads and precise edits.
+2. Use `bash` with an application-specific CLI or a deterministic macOS command
+   such as `open`, `osascript`, `shortcuts`, or `defaults`.
+3. For the user's existing Chrome session, use the supervised DevSpace Chrome
+   task tools; for other matching connectors, use their semantic APIs.
+4. Use `screen_capture` to observe or verify visible state when command output
+   is insufficient.
+5. Use Accessibility actions, simulated mouse input, or simulated keyboard
+   input only when the application exposes no reliable structured interface.
+
+For directories outside the configured workspace roots, structured file tools
+remain unavailable. An owner-approved client may use enabled shell execution
+with the permissions of the DevSpace operating-system user.
 
 ## Durable Shell Jobs
 

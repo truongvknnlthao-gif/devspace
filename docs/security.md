@@ -88,6 +88,12 @@ DevSpace does not manage tunnels. Your tunnel or reverse proxy should point to:
 http://127.0.0.1:7676
 ```
 
+For a named Cloudflare Tunnel, the DNS route and the running tunnel are separate
+parts of the deployment. The proxied DNS record maps the public hostname to the
+tunnel, while `cloudflared` maintains outbound connections and applies the local
+ingress rule that forwards that hostname to DevSpace. DNS alone does not expose
+the local service, and a stopped tunnel leaves the hostname unavailable.
+
 Prefer adding Cloudflare Access, Tailscale identity controls, or equivalent
 protection in front of public tunnels. DevSpace OAuth still protects the MCP
 endpoint, but the tunnel URL should not be treated as a secret.
@@ -120,6 +126,57 @@ bots, or staging layouts.
 
 Use the trusted `bash` tool for complete command-line workflows. Keep
 product-specific automation in the owning repository or a separate plugin.
+
+## macOS Device Helper
+
+`device_status` and `screen_capture` invoke
+`~/Applications/DevSpace Device Helper.app` by default. The helper has a fixed
+bundle identifier and must be signed with the same stable Apple signing
+identity on every installation. Screen Recording permission belongs to that
+helper identity rather than to the LaunchAgent's shell script or versioned Node
+binary.
+
+Screenshots can contain sensitive information from any visible application.
+They are created in a private temporary directory, read into the MCP response,
+and deleted immediately. The helper exposes only status, permission request,
+and screenshot commands in this phase. It does not implement clicking, typing,
+Accessibility actions, or arbitrary command execution.
+
+The helper does not add a separate remote authorization boundary. The existing
+DevSpace OAuth approval remains the decision that allows an MCP client to
+request a screenshot.
+
+DevSpace does not request or require Full Disk Access for these phase-one
+device features. Grant it only later to a fixed-identity helper if a concrete
+protected-data workflow requires it.
+
+## Official Chrome Control
+
+Chrome control is disabled by default and is independent of general shell
+access. When enabled, an Owner-approved MCP client can ask DevSpace to operate
+websites using the local user's existing Chrome session, including logged-in
+state visible to the official Chrome extension. Treat this as delegated browser
+authority.
+
+DevSpace does not speak the native-messaging protocol directly and does not
+copy or patch OpenAI's signed native host. It launches the real local Codex CLI,
+which loads the installed official Chrome plugin and reaches the official
+extension/native-host chain.
+
+Browser instructions are written to a mode-`0600` private input file. The
+runner opens that file as the child process's standard input and deletes it
+after the child starts; a runner failure before that point can leave a
+mode-`0600` remnant in the state directory. Task metadata contains only a
+redacted command label. Raw Codex event output remains mode-`0600` under the
+DevSpace state directory. The Chrome task tools return only durable status and
+the final assistant message; Bash job tools reject Chrome task IDs.
+
+`mode=observe` adds a no-browser-mutation instruction to the model; it is not
+an independent browser or operating-system enforcement boundary. `mode=act`
+permits browser actions within the user's instruction, while the official
+Codex/Chrome safety checks still apply. DevSpace allows only one active Chrome
+task at a time. Its idempotency key prevents accidental duplicate task starts;
+it is not an authorization boundary.
 
 ## Worktrees
 

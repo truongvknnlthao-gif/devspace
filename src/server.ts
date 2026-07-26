@@ -45,6 +45,11 @@ import { createWorkspaceStore } from "./workspace-store.js";
 import { JobManager } from "./job-manager.js";
 import { loadRuntimeInfo } from "./runtime-info.js";
 import { formatAgentsPath, WorkspaceRegistry } from "./workspaces.js";
+import {
+  deviceErrorMessage,
+  MacOSDeviceClient,
+} from "./macos-device.js";
+import { ChromeController } from "./chrome-control.js";
 
 type Transport = StreamableHTTPServerTransport;
 const MCP_SESSION_IDLE_TIMEOUT_MS = 24 * 60 * 60 * 1_000;
@@ -56,6 +61,10 @@ const BASH_STATUS_TOOL = "bash_status";
 const BASH_LOGS_TOOL = "bash_logs";
 const BASH_CANCEL_TOOL = "bash_cancel";
 const BASH_JOBS_TOOL = "bash_jobs";
+const CHROME_STATUS_TOOL = "chrome_status";
+const CHROME_TASK_START_TOOL = "chrome_task_start";
+const CHROME_TASK_STATUS_TOOL = "chrome_task_status";
+const CHROME_TASK_CANCEL_TOOL = "chrome_task_cancel";
 const RUNTIME_INFO = loadRuntimeInfo();
 const WRITE_TOOL_ANNOTATIONS = {
   readOnlyHint: false,
@@ -106,6 +115,7 @@ type ToolWidgetKind =
   | "search"
   | "directory"
   | "shell"
+  | "device"
   | "show_changes";
 
 interface ToolDefinitionMeta extends Record<string, unknown> {
@@ -124,6 +134,8 @@ interface ToolWidgetDescriptorMeta {
 }
 
 function shouldAttachWidget(mode: WidgetMode, kind: ToolWidgetKind): boolean {
+  if (kind === "device") return false;
+
   switch (mode) {
     case "off":
       return false;
@@ -186,7 +198,13 @@ function serverInstructions(config: ServerConfig, toolNames: ToolNames): string 
     ? ` Use ${toolNames.shell} as a trusted local command runner for short workflows. For builds, tests, deployments, migrations, downloads, or any command that may outlive one request, use ${BASH_START_TOOL} with a stable requestId, then ${BASH_STATUS_TOOL}, ${BASH_LOGS_TOOL}, and ${BASH_CANCEL_TOOL}; after a reconnect, use ${BASH_JOBS_TOOL} to recover active jobs. Reusing the same requestId returns the existing job instead of starting a duplicate. DevSpace does not block commands by command text, filename, credential-like content, service name, or destination API; commands run with the permissions of the local DevSpace operating-system user.`
     : " Shell execution is disabled on this server.";
 
-  return `Use DevSpace as a trusted local coding workspace. Call ${toolNames.openWorkspace} once per project folder or worktree to obtain a workspaceId. Reuse that same workspaceId for all later file, search, edit, write, and show-changes tools in that folder; do not call ${toolNames.openWorkspace} again unless switching folders/worktrees, changing checkout/worktree mode, the workspaceId is rejected as unknown, or the user explicitly asks to reopen. ${agentsMd}${inspection}Prefer ${toolNames.edit} for targeted modifications and ${toolNames.write} only for new files or complete rewrites. Do not impose DevSpace-specific deny lists for commands, files, credentials, services, APIs, or destinations after the owner has approved this client.${shell}${showChanges}`;
+  const device =
+    " Use device_status to inspect the signed macOS Device Helper and permissions. For macOS actions, prefer structured DevSpace file tools and, when shell execution is enabled, deterministic command-line or application APIs such as an app-specific CLI, open, or osascript. Use screen_capture only when visual state is needed for observation or verification. Coordinate-based mouse and keyboard automation is a last resort; these device tools do not require a workspaceId.";
+  const chrome = config.chrome.enabled
+    ? ` Use ${CHROME_STATUS_TOOL} to inspect the locally installed official Chrome extension and native host. For work in the user's existing signed-in Chrome session, submit one complete high-level workflow with ${CHROME_TASK_START_TOOL}, then poll ${CHROME_TASK_STATUS_TOOL} or stop it with ${CHROME_TASK_CANCEL_TOOL}. Do not split a workflow into remote click/type steps; DevSpace supervises one official Chrome session per task. These Chrome tools do not require a workspaceId.`
+    : "";
+
+  return `Use DevSpace as a trusted local coding workspace. Call ${toolNames.openWorkspace} once per project folder or worktree to obtain a workspaceId. Reuse that same workspaceId for all later file, search, edit, write, and show-changes tools in that folder; do not call ${toolNames.openWorkspace} again unless switching folders/worktrees, changing checkout/worktree mode, the workspaceId is rejected as unknown, or the user explicitly asks to reopen. ${agentsMd}${inspection}Prefer ${toolNames.edit} for targeted modifications and ${toolNames.write} only for new files or complete rewrites. Do not impose DevSpace-specific deny lists for commands, files, credentials, services, APIs, or destinations after the owner has approved this client.${device}${chrome}${shell}${showChanges}`;
 }
 function resultOutputSchema(extra: z.ZodRawShape = {}): z.ZodRawShape {
   return {
@@ -287,6 +305,31 @@ function logFailedToolResponse(
 
 function textBlock(text: string): ToolContent {
   return { type: "text", text };
+}
+
+function chromeToolError(
+  config: ServerConfig,
+  tool: string,
+  error: unknown,
+  startedAt: number,
+) {
+  const message = error instanceof Error ? error.message : String(error);
+  const result = `Chrome control failed: ${message}`;
+  const content = [textBlock(result)];
+  logFailedToolResponse(config, { tool }, content, startedAt);
+  return {
+    isError: true,
+    content,
+    structuredContent: { result },
+  };
+}
+
+async function requireBashJob(jobs: JobManager, jobId: string) {
+  const job = await jobs.require(jobId);
+  if (job.kind?.startsWith("chrome:")) {
+    throw new Error(`Unknown Bash jobId: ${jobId}`);
+  }
+  return job;
 }
 
 function textSummary(content: ToolContent[]): {
@@ -439,18 +482,311 @@ export function createMcpServer(
   jobs: JobManager = new JobManager(config.stateDir),
 ): McpServer {
   const toolNames = TOOL_NAMES;
+  const device = new MacOSDeviceClient({
+    helperPath: config.deviceHelperPath,
+  });
+  const chrome = new ChromeController(config.chrome, config.stateDir, jobs);
   const server = new McpServer(
     {
       name: "devspace",
       title: "DevSpace",
       version: RUNTIME_INFO.version,
       description:
-        `Secure local coding workspace for MCP clients. Provides workspace-scoped file, search, edit, and write tools${config.shellEnabled ? ", plus explicitly enabled shell execution" : ""}.`,
+        `Secure local coding workspace and macOS device gateway for MCP clients. Provides device status and screenshots, workspace-scoped file, search, edit, and write tools${config.shellEnabled ? ", plus explicitly enabled shell execution" : ""}${config.chrome.enabled ? ", plus supervised access to the official Chrome control component" : ""}.`,
     },
     {
       instructions: serverInstructions(config, toolNames),
     },
   );
+
+  registerAppTool(
+    server,
+    "device_status",
+    {
+      title: "Device status",
+      description:
+        "Inspect the fixed-identity DevSpace Device Helper and report current macOS Screen Recording and Accessibility permissions. This is a system-level status tool and does not require open_workspace.",
+      inputSchema: {},
+      outputSchema: {
+        result: z.string(),
+        platform: z.string(),
+        supported: z.boolean(),
+        helperInstalled: z.boolean(),
+        helperPath: z.string(),
+        helperVersion: z.string().optional(),
+        bundleIdentifier: z.string().optional(),
+        screenCaptureAuthorized: z.boolean(),
+        accessibilityAuthorized: z.boolean(),
+        error: z.string().optional(),
+      },
+      ...toolWidgetDescriptorMeta(config, "device"),
+      annotations: {
+        readOnlyHint: true,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async () => {
+      const startedAt = performance.now();
+      const status = await device.status();
+      const result = JSON.stringify(status, null, 2);
+      logToolCall(config, {
+        tool: "device_status",
+        success: true,
+        durationMs: Math.round(performance.now() - startedAt),
+      });
+
+      return {
+        content: [textBlock(result)],
+        structuredContent: {
+          result,
+          ...status,
+        },
+      };
+    },
+  );
+
+  registerAppTool(
+    server,
+    "screen_capture",
+    {
+      title: "Capture screen",
+      description:
+        "Capture a macOS display through the fixed-identity DevSpace Device Helper and return a PNG image for visual inspection. This does not require open_workspace. Omit displayId to capture the main display.",
+      inputSchema: {
+        displayId: z
+          .number()
+          .int()
+          .nonnegative()
+          .optional()
+          .describe("Optional CoreGraphics display ID. Defaults to the main display."),
+      },
+      outputSchema: {
+        result: z.string(),
+        displayId: z.number().int().nonnegative().optional(),
+        width: z.number().int().positive().optional(),
+        height: z.number().int().positive().optional(),
+        mimeType: z.literal("image/png").optional(),
+        bytes: z.number().int().nonnegative().optional(),
+        error: z.string().optional(),
+      },
+      ...toolWidgetDescriptorMeta(config, "device"),
+      annotations: {
+        readOnlyHint: true,
+        idempotentHint: false,
+        openWorldHint: false,
+      },
+    },
+    async ({ displayId }) => {
+      const startedAt = performance.now();
+      try {
+        const capture = await device.capture(displayId);
+        const result =
+          `Captured display ${capture.displayId} as ${capture.width}x${capture.height} PNG (${capture.bytes} bytes).`;
+        logToolCall(config, {
+          tool: "screen_capture",
+          success: true,
+          durationMs: Math.round(performance.now() - startedAt),
+        });
+
+        return {
+          content: [
+            textBlock(result),
+            {
+              type: "image" as const,
+              data: capture.data,
+              mimeType: capture.mimeType,
+            },
+          ],
+          structuredContent: {
+            result,
+            displayId: capture.displayId,
+            width: capture.width,
+            height: capture.height,
+            mimeType: capture.mimeType,
+            bytes: capture.bytes,
+          },
+        };
+      } catch (error) {
+        const message = deviceErrorMessage(error);
+        const result = `Screen capture failed: ${message}`;
+        const content = [textBlock(result)];
+        logFailedToolResponse(
+          config,
+          { tool: "screen_capture" },
+          content,
+          startedAt,
+        );
+        return {
+          isError: true,
+          content,
+          structuredContent: {
+            result,
+            error: message,
+          },
+        };
+      }
+    },
+  );
+
+  if (config.chrome.enabled) {
+    registerAppTool(
+      server,
+      CHROME_STATUS_TOOL,
+      {
+        title: "Chrome control status",
+        description:
+          "Inspect whether DevSpace can reach the installed Codex CLI, official Chrome plugin, Chrome extension, signed native host, and running Chrome application. This is a fast local check; it does not start a model task or require open_workspace.",
+        inputSchema: {},
+        outputSchema: resultOutputSchema(),
+        ...toolWidgetDescriptorMeta(config, "device"),
+        annotations: {
+          readOnlyHint: true,
+          idempotentHint: true,
+          openWorldHint: false,
+        },
+      },
+      async () => {
+        const startedAt = performance.now();
+        const result = JSON.stringify(await chrome.status(), null, 2);
+        logToolCall(config, {
+          tool: CHROME_STATUS_TOOL,
+          success: true,
+          durationMs: Math.round(performance.now() - startedAt),
+        });
+        return { content: [textBlock(result)], structuredContent: { result } };
+      },
+    );
+
+    registerAppTool(
+      server,
+      CHROME_TASK_START_TOOL,
+      {
+        title: "Start supervised Chrome task",
+        description:
+          "Start one complete high-level workflow in the user's existing Chrome session through DevSpace, the real local Codex CLI, and the official Chrome extension/native host. Returns immediately with a durable taskId. requestId is an idempotency key; retrying it does not start a duplicate. Use mode=observe for inspection without browser changes, or mode=act for the requested browser actions.",
+        inputSchema: {
+          requestId: z
+            .string()
+            .min(1)
+            .max(200)
+            .describe("Stable idempotency key. Reuse only when retrying the same intended Chrome workflow."),
+          instruction: z
+            .string()
+            .min(1)
+            .max(20_000)
+            .describe("One complete browser workflow, including the desired end result and boundaries."),
+          mode: z
+            .enum(["observe", "act"])
+            .describe("observe instructs the browser task not to change browser or website state; act permits actions within the instruction."),
+          timeout: z
+            .number()
+            .int()
+            .positive()
+            .max(config.chrome.taskTimeoutSeconds)
+            .optional()
+            .describe(`Optional timeout in seconds, up to the configured maximum of ${config.chrome.taskTimeoutSeconds}.`),
+        },
+        outputSchema: resultOutputSchema(),
+        ...toolWidgetDescriptorMeta(config, "device"),
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: true,
+          idempotentHint: false,
+          openWorldHint: true,
+        },
+      },
+      async ({ requestId, instruction, mode, timeout }) => {
+        const startedAt = performance.now();
+        try {
+          const task = await chrome.startTask({
+            requestId,
+            instruction,
+            mode,
+            timeoutSeconds: timeout,
+          });
+          const result = JSON.stringify(
+            { deduplicated: task.deduplicated, ...task.task },
+            null,
+            2,
+          );
+          logToolCall(config, {
+            tool: CHROME_TASK_START_TOOL,
+            success: true,
+            durationMs: Math.round(performance.now() - startedAt),
+          });
+          return { content: [textBlock(result)], structuredContent: { result } };
+        } catch (error) {
+          return chromeToolError(config, CHROME_TASK_START_TOOL, error, startedAt);
+        }
+      },
+    );
+
+    registerAppTool(
+      server,
+      CHROME_TASK_STATUS_TOOL,
+      {
+        title: "Get Chrome task status",
+        description:
+          "Read the durable status and concise final result of a supervised Chrome task. Raw Codex/browser event logs are not returned.",
+        inputSchema: { taskId: z.string() },
+        outputSchema: resultOutputSchema(),
+        ...toolWidgetDescriptorMeta(config, "device"),
+        annotations: {
+          readOnlyHint: true,
+          idempotentHint: true,
+          openWorldHint: false,
+        },
+      },
+      async ({ taskId }) => {
+        const startedAt = performance.now();
+        try {
+          const result = JSON.stringify(await chrome.taskStatus(taskId), null, 2);
+          logToolCall(config, {
+            tool: CHROME_TASK_STATUS_TOOL,
+            success: true,
+            durationMs: Math.round(performance.now() - startedAt),
+          });
+          return { content: [textBlock(result)], structuredContent: { result } };
+        } catch (error) {
+          return chromeToolError(config, CHROME_TASK_STATUS_TOOL, error, startedAt);
+        }
+      },
+    );
+
+    registerAppTool(
+      server,
+      CHROME_TASK_CANCEL_TOOL,
+      {
+        title: "Cancel Chrome task",
+        description:
+          "Cancel a supervised Chrome task by terminating its complete local Codex process group. A completed task is returned unchanged.",
+        inputSchema: { taskId: z.string() },
+        outputSchema: resultOutputSchema(),
+        ...toolWidgetDescriptorMeta(config, "device"),
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: true,
+          idempotentHint: true,
+          openWorldHint: false,
+        },
+      },
+      async ({ taskId }) => {
+        const startedAt = performance.now();
+        try {
+          const result = JSON.stringify(await chrome.cancelTask(taskId), null, 2);
+          logToolCall(config, {
+            tool: CHROME_TASK_CANCEL_TOOL,
+            success: true,
+            durationMs: Math.round(performance.now() - startedAt),
+          });
+          return { content: [textBlock(result)], structuredContent: { result } };
+        } catch (error) {
+          return chromeToolError(config, CHROME_TASK_CANCEL_TOOL, error, startedAt);
+        }
+      },
+    );
+  }
 
   registerAppResource(
     server,
@@ -1144,6 +1480,7 @@ export function createMcpServer(
         const started = await jobs.start({
           requestId,
           workspaceId,
+          kind: "bash",
           cwd,
           command,
           timeoutSeconds: timeout,
@@ -1168,7 +1505,7 @@ export function createMcpServer(
         annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
       },
       async ({ jobId }) => {
-        const result = JSON.stringify(await jobs.require(jobId), null, 2);
+        const result = JSON.stringify(await requireBashJob(jobs, jobId), null, 2);
         return { content: [textBlock(result)], structuredContent: { result } };
       },
     );
@@ -1189,6 +1526,7 @@ export function createMcpServer(
         annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
       },
       async ({ jobId, cursor, maxBytes }) => {
+        await requireBashJob(jobs, jobId);
         const result = JSON.stringify(await jobs.logs(jobId, cursor, maxBytes), null, 2);
         return { content: [textBlock(result)], structuredContent: { result } };
       },
@@ -1206,6 +1544,7 @@ export function createMcpServer(
         annotations: SHELL_TOOL_ANNOTATIONS,
       },
       async ({ jobId }) => {
+        await requireBashJob(jobs, jobId);
         const result = JSON.stringify(await jobs.cancel(jobId), null, 2);
         return { content: [textBlock(result)], structuredContent: { result } };
       },
@@ -1227,7 +1566,12 @@ export function createMcpServer(
         annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
       },
       async ({ workspaceId, activeOnly, limit }) => {
-        const result = JSON.stringify(await jobs.list({ workspaceId, activeOnly, limit }), null, 2);
+        const listed = await jobs.list({ workspaceId, activeOnly, limit });
+        const result = JSON.stringify(
+          listed.filter((job) => !job.kind?.startsWith("chrome:")),
+          null,
+          2,
+        );
         return { content: [textBlock(result)], structuredContent: { result } };
       },
     );
@@ -1562,6 +1906,7 @@ if (await isMainModule()) {
     console.log(`request logging: ${config.logging.requests ? "enabled" : "disabled"}`);
     console.log(`asset logging: ${config.logging.assets ? "enabled" : "disabled"}`);
     console.log(`shell execution: ${config.shellEnabled ? "enabled" : "disabled"}`);
+    console.log(`chrome control: ${config.chrome.enabled ? "enabled" : "disabled"}`);
     console.log(`trust proxy: ${config.logging.trustProxy ? "enabled" : "disabled"}`);
   });
 

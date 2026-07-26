@@ -1,6 +1,6 @@
 {
   "name": "devspace-local",
-  "version": "1.2.1",
+  "version": "1.3.3",
   "private": true,
   "description": "Expose a secure local coding workspace through an MCP server.",
   "type": "module",
@@ -14,6 +14,7 @@
   "files": [
     "dist",
     "docs",
+    "native",
     "scripts",
     "README.md",
     "build-info.json"
@@ -24,8 +25,9 @@
     "build:app": "vite build",
     "dev": "node scripts/dev-server.mjs",
     "start": "node dist/cli.js serve",
-    "test": "tsx src/config.test.ts && tsx src/mcp-sessions.test.ts && tsx src/server-shutdown.test.ts && tsx src/roots.test.ts && tsx src/security-boundaries.test.ts && tsx src/tool-surface.test.ts && tsx src/workspaces.test.ts && tsx src/review-checkpoints.test.ts && tsx src/oauth-store.test.ts && tsx src/job-manager.test.ts && tsx src/job-tools.test.ts",
+    "test": "tsx src/config.test.ts && tsx src/macos-device.test.ts && tsx src/chrome-control.test.ts && tsx src/mcp-sessions.test.ts && tsx src/server-shutdown.test.ts && tsx src/roots.test.ts && tsx src/security-boundaries.test.ts && tsx src/tool-surface.test.ts && tsx src/workspaces.test.ts && tsx src/review-checkpoints.test.ts && tsx src/oauth-store.test.ts && tsx src/job-manager.test.ts && tsx src/job-tools.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "install:device-helper": "./scripts/install-device-helper.sh",
     "verify:public": "node scripts/verify-public.mjs"
   },
   "keywords": [],
