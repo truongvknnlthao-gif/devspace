@@ -10,6 +10,10 @@ automatic source of changes.
 - Keep Git history, the MIT license, original copyright, and concise upstream
   attribution.
 - Keep the `upstream` remote fetchable but disable its push URL locally.
+- Set the GitHub CLI default to this fork with `gh repo set-default origin`
+  after cloning. Without an explicit default, `gh` can select the fork parent
+  for pull requests, issues, releases, and Actions. Automation should also pass
+  `-R truongvknnlthao-gif/devspace` explicitly.
 - Do not configure automatic upstream synchronization.
 - Do not merge or rebase the complete upstream branch into this fork.
 - Review individual upstream security and reliability fixes, then port the
