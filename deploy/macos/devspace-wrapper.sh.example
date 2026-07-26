@@ -1,0 +1,11 @@
+#!/bin/sh
+set -eu
+
+DEVSPACE_RUNTIME="__HOME__/.local/share/devspace-runtime"
+DEVSPACE_NODE="__NODE_BINARY__"
+
+export DEVSPACE_SHELL_ENABLED=1
+export DEVSPACE_WIDGETS=changes
+export DEVSPACE_TRUST_PROXY=1
+
+exec "$DEVSPACE_NODE" "$DEVSPACE_RUNTIME/dist/cli.js" serve

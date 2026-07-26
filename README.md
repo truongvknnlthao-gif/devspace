@@ -6,6 +6,8 @@
 
 <p align="center">Bring a Codex-style local coding workflow to ChatGPT.</p>
 
+[![CI](https://github.com/truongvknnlthao-gif/devspace/actions/workflows/ci.yml/badge.svg)](https://github.com/truongvknnlthao-gif/devspace/actions/workflows/ci.yml)
+
 [![DevSpace connected to ChatGPT](./docs/assets/devspace-screenshot.png)](./docs/assets/devspace-screenshot.png)
 
 DevSpace is a self-hosted MCP server that lets an approved ChatGPT developer
@@ -20,7 +22,7 @@ the authority for this fork.
 
 ## Current Version
 
-The source version is `1.2.0`. A running server reports its exact version,
+The source version is `1.2.1`. A running server reports its exact version,
 commit, build time, start time, PID, and active job count:
 
 ```bash
@@ -28,20 +30,20 @@ curl https://your-devspace-host.example.com/healthz
 ```
 
 ChatGPT's labels such as `dev-0` are developer-app revision numbers. They are
-not DevSpace package versions and are not expected to match `1.2.0`.
+not DevSpace package versions and are not expected to match `1.2.1`.
 
-The npm package `@waishnav/devspace` belongs to the upstream project and may lag
-behind this fork. Build from this repository when installing or verifying the
-maintained version documented here.
+This fork is a private source package named `devspace-local`. The npm package
+`@waishnav/devspace` belongs to the upstream project and is not an installation
+or version authority for this repository.
 
 ## Requirements
 
 - Node `>=20.12 <27`; Node 22 LTS is recommended
-- npm, Git, and Bash
+- npm, Git, and Bash on macOS
 - a public HTTPS URL that forwards to the local server when connecting ChatGPT
 
-Linux and macOS are supported. Windows requires a Bash-compatible environment
-such as Git Bash, WSL, MSYS2, or Cygwin.
+This maintained fork is tested on macOS with Node 22 and Node 24. Other
+platforms are outside its current support and CI boundary.
 
 ## Quick Start From This Repository
 
@@ -92,6 +94,12 @@ system user that starts DevSpace.
 6. Connect the app, enter the Owner password only on the DevSpace authorization
    page, and approve the client.
 7. Return to the app page, confirm **Connected**, then refresh its actions.
+
+Before connecting, verify the public discovery and authentication boundary:
+
+```bash
+npm run verify:public -- https://your-devspace-host.example.com
+```
 
 Deleting and recreating the personal app creates a new ChatGPT app ID and a new
 developer revision sequence. It does not redeploy or change the DevSpace
@@ -148,8 +156,11 @@ For runtime monitoring, upgrades, health checks, and rollback guidance, see
 - [ChatGPT Coding Workflow](./docs/chatgpt-coding-workflow.md)
 - [Configuration Reference](./docs/configuration.md)
 - [Security Model](./docs/security.md)
+- [Public OAuth And MCP Verification](./docs/public-oauth-verification.md)
 - [Runtime Operations](./docs/runtime-operations.md)
+- [Fork Maintenance](./docs/fork-maintenance.md)
 - [Troubleshooting Gotchas](./docs/gotchas.md)
+- [Changelog](./CHANGELOG.md)
 
 ## Development
 
@@ -163,9 +174,16 @@ node dist/cli.js doctor
 
 Use `npm run dev` to run the TypeScript source directly while developing.
 
+Pull requests must pass dependency review plus the complete typecheck, test,
+build, and doctor sequence on macOS with Node 22 and Node 24. CI is a clean
+machine proof of the checked-in dependency lock and build process; it does not
+replace the public OAuth check or the authenticated ChatGPT acceptance checklist.
+
 ## Upstream And License
 
 This project is derived from
 [`Waishnav/devspace`](https://github.com/Waishnav/devspace). Original authorship
 and copyright are preserved in the repository history and
-[`LICENSE`](./LICENSE). DevSpace is distributed under the MIT License.
+[`LICENSE`](./LICENSE). The upstream repository is retained as a read-only
+reference; it is not merged or synchronized automatically. DevSpace is
+distributed under the MIT License.

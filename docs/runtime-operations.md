@@ -94,6 +94,10 @@ The stable path used by launchd or another service manager should be the
 `devspace-runtime` symlink. Do not point the service directly at a mutable source
 checkout.
 
+Sanitized LaunchAgent, wrapper, and Cloudflare Tunnel examples are available in
+[`deploy/macos`](../deploy/macos/README.md). Render them outside the repository
+and never commit machine-specific paths, tunnel identity, or credentials.
+
 ## Safe Upgrade Workflow
 
 ### 1. Inspect The Current Runtime
@@ -182,6 +186,10 @@ Compare Git tree IDs. When the merged `main` tree matches the validated candidat
 tree, the existing runtime does not need another build or restart merely because
 the commit ID changed. Preserve the original build commit in `/healthz` and link
 it to the merged release through the tag and deployment record.
+
+When source code changes after a release, build the next candidate from the exact
+intended commit. Do not relabel an older runtime or infer that it serves the new
+commit merely because the package version or active branch changed.
 
 ## Rollback
 

@@ -22,6 +22,7 @@ coding agent.
 | Review trust boundaries, shell authority, OAuth, tunnels, worktrees, or local state protection | `docs/security.md` |
 | Diagnose Node ABI, tunnels, hosts, OAuth, unknown workspaces, worktrees, or connector 502 errors | `docs/gotchas.md` |
 | Build, release, upgrade, roll back, or clean a running DevSpace installation | `docs/runtime-operations.md` |
+| Review upstream changes, dependency updates, fork identity, or release provenance | `docs/fork-maintenance.md` |
 | Understand public product behavior and local development commands | `README.md` and `package.json` |
 
 ## Core Rules
