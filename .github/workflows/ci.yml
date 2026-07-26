@@ -30,15 +30,9 @@ jobs:
           fail-on-severity: high
 
   smoke:
-    name: macOS Node ${{ matrix.node }}
+    name: macOS Node 24
     runs-on: macos-latest
     timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        node:
-          - 22
-          - 24
 
     env:
       DEVSPACE_ALLOWED_ROOTS: ${{ github.workspace }}
@@ -52,7 +46,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node }}
+          node-version: 24
           cache: npm
 
       - name: Install dependencies

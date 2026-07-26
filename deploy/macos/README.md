@@ -4,13 +4,17 @@ These templates describe the maintained macOS deployment shape:
 
 - an immutable release under `~/.local/share/devspace-releases/`
 - `~/.local/share/devspace-runtime` as the active release symlink
-- `~/.local/bin/devspace` as the stable wrapper
+- `~/.local/bin/devspace` as the stable Node 24 wrapper
 - one LaunchAgent for DevSpace
 - one LaunchAgent for a named Cloudflare Tunnel
 
 Copy the examples outside the repository and replace every `__PLACEHOLDER__`.
 Do not commit the rendered files because they contain machine paths and tunnel
 identity.
+
+Render `__NODE_24_BINARY__` as the absolute path of the Node 24 executable.
+Keep that path fixed in the wrapper and install release dependencies with the
+same executable so native modules use the Node 24 ABI.
 
 ## Cloudflare Tunnel Provisioning
 
@@ -45,7 +49,7 @@ machine paths outside Git.
 
 ## Files
 
-- `devspace-wrapper.sh.example`: stable Node/runtime entrypoint
+- `devspace-wrapper.sh.example`: stable Node 24/runtime entrypoint
 - `com.devspace.server.plist.example`: DevSpace LaunchAgent
 - `cloudflared-config.yml.example`: named-tunnel ingress
 - `com.devspace.cloudflare-tunnel.plist.example`: tunnel LaunchAgent

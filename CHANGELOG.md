@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.4.0 - 2026-07-26
+
+- Make Node 24 the only supported runtime across package metadata, CLI
+  validation, CI, documentation, and macOS service templates.
+- Align Node type definitions and native dependency installation guidance with
+  the Node 24 runtime.
+
 ## 1.3.3 - 2026-07-26
 
 - Make immediate durable-job cancellation wait for the runner to record a

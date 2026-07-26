@@ -21,7 +21,7 @@ import { shutdownHttpServer } from "./server-shutdown.js";
 
 type Command = "serve" | "init" | "doctor" | "config" | "help";
 const require = createRequire(import.meta.url);
-const SUPPORTED_NODE_RANGE = ">=20.12 <27";
+const SUPPORTED_NODE_RANGE = ">=24 <25";
 
 async function main(argv: string[]): Promise<void> {
   assertSupportedNode();
@@ -384,7 +384,7 @@ function assertSupportedNode(): void {
       `DevSpace requires Node ${SUPPORTED_NODE_RANGE}.`,
       `Current Node: ${process.version}`,
       "",
-      "Install Node 22 LTS or use a version manager such as nvm, fnm, or mise.",
+      "Install Node 24 or use a version manager such as nvm, fnm, or mise.",
     ].join("\n"),
   );
 }

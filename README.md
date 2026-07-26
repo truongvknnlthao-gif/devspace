@@ -40,12 +40,12 @@ or version authority for this repository.
 
 ## Requirements
 
-- Node `>=20.12 <27`; Node 22 LTS is recommended
+- Node `>=24 <25`
 - npm, Git, and Bash on macOS
 - a public HTTPS URL that forwards to the local server when connecting ChatGPT
 
-This maintained fork is tested on macOS with Node 22 and Node 24. Other
-platforms are outside its current support and CI boundary.
+This maintained fork supports and tests Node 24 on macOS. Other Node releases
+and platforms are outside its current support and CI boundary.
 
 ## Quick Start From This Repository
 
@@ -202,7 +202,7 @@ node dist/cli.js doctor
 Use `npm run dev` to run the TypeScript source directly while developing.
 
 Pull requests must pass dependency review plus the complete typecheck, test,
-build, and doctor sequence on macOS with Node 22 and Node 24. CI is a clean
+build, and doctor sequence on macOS with Node 24. CI is a clean
 machine proof of the checked-in dependency lock and build process; it does not
 replace the public OAuth check or the authenticated ChatGPT acceptance checklist.
 

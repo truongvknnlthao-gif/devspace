@@ -1,12 +1,12 @@
 {
   "name": "devspace-local",
-  "version": "1.3.3",
+  "version": "1.4.0",
   "private": true,
   "description": "Expose a secure local coding workspace through an MCP server.",
   "type": "module",
   "main": "dist/server.js",
   "engines": {
-    "node": ">=20.12 <27"
+    "node": ">=24 <25"
   },
   "bin": {
     "devspace": "dist/cli.js"
@@ -50,7 +50,7 @@
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
     "@types/express": "^5.0.6",
-    "@types/node": "^25.9.1",
+    "@types/node": "^24.13.3",
     "@types/react": "^19.2.15",
     "@types/react-dom": "^19.2.3",
     "@types/semver": "^7.7.1",
