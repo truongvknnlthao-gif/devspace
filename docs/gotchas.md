@@ -116,6 +116,19 @@ If another MCP client uses a different redirect host, configure:
 DEVSPACE_OAUTH_ALLOWED_REDIRECT_HOSTS="chatgpt.com,example.com" npx @waishnav/devspace serve
 ```
 
+## ChatGPT Does Not Show `Create app`
+
+Confirm Developer mode is enabled under **Settings > Security and login**.
+Then open the **Plugins** directory and select the **Personal** tab. The
+**Public** tab shows the public catalog and does not expose the personal
+**Create app** entry.
+
+After OAuth approval, open the DevSpace plugin details and select **Refresh**.
+A successful refresh changes an initially empty Actions section into the
+DevSpace MCP tool list. If the plugin says **Connected** but Actions remains
+empty, check the public `/healthz` endpoint, confirm the app URL ends in `/mcp`,
+and refresh again.
+
 ## Owner Password Not Accepted
 
 Make sure you are entering the Owner password from:
