@@ -95,6 +95,41 @@ npx @waishnav/devspace config set publicBaseUrl https://devspace.example.com
 npx @waishnav/devspace serve
 ```
 
+## Connect ChatGPT In Developer Mode
+
+Use ChatGPT's personal developer-app flow for a self-hosted DevSpace server:
+
+1. Open **Settings > Security and login** and enable **Developer mode**.
+2. Open the **Plugins** directory.
+3. Select the **Personal** tab. The **Public** tab only shows the public
+   directory and does not expose the personal app creation flow.
+4. Select **Create app**.
+5. Enter a name and description, use the full public MCP endpoint such as
+   `https://your-tunnel-host.example.com/mcp`, and select **OAuth**.
+6. Review the developer-app warning, confirm it only for a server you trust,
+   and create the app.
+7. Select **Connect** or **Sign in**. On the DevSpace authorization page, enter
+   the Owner password and approve the client.
+8. Return to the plugin details, confirm it says **Connected**, and select
+   **Refresh**. The Actions section should list DevSpace tools such as
+   `open_workspace`, `read`, `edit`, and `bash`.
+
+Keep the Owner password out of the app name, description, URL, screenshots, and
+logs. Enter it only on the DevSpace authorization page for a client you
+intentionally want to trust.
+
+ChatGPT and DevSpace use separate version identifiers:
+
+- ChatGPT assigns a generated app ID beginning with `plugin_asdk_app_` and
+  development revision metadata such as `dev mode` and `dev-0`.
+- DevSpace reports its server version and source commit from `/healthz`, for
+  example `1.2.0` plus a Git commit.
+
+Deleting and recreating the personal app creates a new ChatGPT app identity and
+a new development revision sequence. It does not change or redeploy the
+DevSpace server, so the ChatGPT development revision is not expected to match
+the DevSpace package version.
+
 ## Approve The Client
 
 When ChatGPT, Claude, or another MCP client connects, DevSpace shows an Owner
