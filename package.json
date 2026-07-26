@@ -1,6 +1,6 @@
 {
   "name": "devspace-local",
-  "version": "1.3.2",
+  "version": "1.3.3",
   "private": true,
   "description": "Expose a secure local coding workspace through an MCP server.",
   "type": "module",

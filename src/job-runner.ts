@@ -33,10 +33,20 @@ async function main(): Promise<void> {
   if (!input.commandFile && !input.executable) {
     throw new Error("Job runner requires commandFile or executable.");
   }
+  const startedAt = new Date().toISOString();
+  if (await fileExists(input.cancelFile)) {
+    await writeState(input.stateFile, {
+      status: "canceled",
+      startedAt,
+      completedAt: startedAt,
+      exitCode: null,
+      signal: null,
+    });
+    return;
+  }
   const command = input.commandFile
     ? await readFile(input.commandFile, "utf8")
     : undefined;
-  const startedAt = new Date().toISOString();
   const logFd = openSync(input.logFile, "a");
   const stdinFd = input.stdinFile ? openSync(input.stdinFile, "r") : undefined;
   let timedOut = false;

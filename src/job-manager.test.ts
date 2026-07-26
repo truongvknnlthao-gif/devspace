@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
-import { access, mkdtemp, rm } from "node:fs/promises";
+import { once } from "node:events";
+import { mkdir, access, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { spawn } from "node:child_process";
 import { JobManager, isActive, type JobRecord } from "./job-manager.js";
 
 const root = await mkdtemp(join(tmpdir(), "devspace-job-manager-test-"));
@@ -73,6 +75,38 @@ try {
   const canceledLogs = await manager.logs(long.job.jobId, 0, 1024);
   assert.match(canceledLogs.text, /started/);
   assert.doesNotMatch(canceledLogs.text, /unexpected/);
+
+  const immediate = await manager.start({
+    requestId: "request-cancel-immediate-1",
+    workspaceId: "ws_test",
+    cwd: root,
+    command: "sleep 30",
+    timeoutSeconds: 60,
+  });
+  const canceledImmediate = await manager.cancel(immediate.job.jobId);
+  assert.equal(canceledImmediate.status, "canceled");
+
+  const exitedRunner = spawn(process.execPath, ["-e", ""]);
+  assert.ok(exitedRunner.pid);
+  await once(exitedRunner, "exit");
+  const orphanedJobId = "job_00000000-0000-4000-8000-000000000001";
+  const orphanedJobDir = join(root, "jobs", orphanedJobId);
+  await mkdir(orphanedJobDir);
+  await writeFile(join(orphanedJobDir, "job.json"), `${JSON.stringify({
+    jobId: orphanedJobId,
+    requestId: "request-orphaned-cancel-1",
+    workspaceId: "ws_test",
+    cwd: root,
+    command: "sleep 30",
+    status: "starting",
+    createdAt: new Date().toISOString(),
+    runnerPid: exitedRunner.pid,
+  }, null, 2)}\n`);
+  await writeFile(join(orphanedJobDir, "output.log"), "");
+  await writeFile(join(orphanedJobDir, "cancel-requested"), `${new Date().toISOString()}\n`);
+  const reconciled = await manager.require(orphanedJobId);
+  assert.equal(reconciled.status, "canceled");
+  await access(join(orphanedJobDir, "state.json"));
 
   const timeout = await manager.start({
     requestId: "request-timeout-1",

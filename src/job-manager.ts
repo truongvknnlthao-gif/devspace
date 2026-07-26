@@ -224,6 +224,23 @@ export class JobManager {
     } catch {
       runnerState = undefined;
     }
+    if (!runnerState && metadata.runnerPid && !isRunnerAlive(metadata.runnerPid)) {
+      try {
+        runnerState = JSON.parse(await readFile(paths.stateFile, "utf8")) as RunnerState;
+      } catch {
+        const canceled = existsSync(paths.cancelFile);
+        runnerState = {
+          status: canceled ? "canceled" : "failed",
+          startedAt: metadata.createdAt,
+          completedAt: new Date().toISOString(),
+          exitCode: null,
+          signal: canceled
+            ? "runner exited before recording cancellation"
+            : "runner exited before writing state",
+        };
+        await writeAtomic(paths.stateFile, `${JSON.stringify(runnerState, null, 2)}\n`, 0o600);
+      }
+    }
     const logBytes = await fileSize(paths.logFile);
 
     if (runnerState) {
@@ -294,27 +311,30 @@ export class JobManager {
     if (!isActive(job.status)) return job;
     await writeAtomic(paths.cancelFile, `${new Date().toISOString()}\n`, 0o600);
 
-    for (let attempt = 0; attempt < 10 && !job.processGroupId; attempt += 1) {
-      await sleep(100);
-      job = await this.require(jobId);
-    }
-
-    const processGroupId = job.processGroupId ?? job.childPid;
-    if (processGroupId) {
-      signalProcessGroup(processGroupId, "SIGTERM");
-      await sleep(500);
-      if (isProcessGroupAlive(processGroupId)) signalProcessGroup(processGroupId, "SIGKILL");
-    } else if (job.runnerPid) {
-      signalProcess(job.runnerPid, "SIGTERM");
-    }
-
-    for (let attempt = 0; attempt < 30; attempt += 1) {
-      await sleep(100);
+    let signaledProcessGroup: number | undefined;
+    let forceKillAt = 0;
+    for (let attempt = 0; attempt < 100; attempt += 1) {
       job = await this.require(jobId);
       if (!isActive(job.status)) return job;
+
+      const processGroupId = job.processGroupId ?? job.childPid;
+      if (processGroupId && signaledProcessGroup !== processGroupId) {
+        signalProcessGroup(processGroupId, "SIGTERM");
+        signaledProcessGroup = processGroupId;
+        forceKillAt = Date.now() + 500;
+      } else if (
+        signaledProcessGroup
+        && Date.now() >= forceKillAt
+        && isProcessGroupAlive(signaledProcessGroup)
+      ) {
+        signalProcessGroup(signaledProcessGroup, "SIGKILL");
+        forceKillAt = Number.POSITIVE_INFINITY;
+      }
+
+      await sleep(100);
     }
 
-    return job;
+    return this.require(jobId);
   }
 
   private async initialize(): Promise<void> {
@@ -375,11 +395,13 @@ function signalProcessGroup(pid: number, signal: NodeJS.Signals): void {
   }
 }
 
-function signalProcess(pid: number, signal: NodeJS.Signals): void {
+function isRunnerAlive(pid: number): boolean {
   try {
-    process.kill(pid, signal);
+    process.kill(pid, 0);
+    process.kill(-pid, 0);
+    return true;
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
+    return (error as NodeJS.ErrnoException).code !== "ESRCH";
   }
 }
 

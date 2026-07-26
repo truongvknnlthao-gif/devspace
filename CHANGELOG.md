@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.3 - 2026-07-26
+
+- Make immediate durable-job cancellation wait for the runner to record a
+  terminal state instead of terminating it during startup.
+- Reconcile orphaned jobs whose runners exited before writing state, including
+  cancellation requests created by an earlier runtime.
+
 ## 1.3.2 - 2026-07-26
 
 - Add optional DevSpace-managed Chrome status and durable high-level browser

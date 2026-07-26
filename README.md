@@ -24,7 +24,7 @@ the authority for this fork.
 
 ## Current Version
 
-The source version is `1.3.2`. A running server reports its exact version,
+The source version is `1.3.3`. A running server reports its exact version,
 commit, build time, start time, PID, and active job count:
 
 ```bash
@@ -32,7 +32,7 @@ curl https://your-devspace-host.example.com/healthz
 ```
 
 ChatGPT's labels such as `dev-0` are developer-app revision numbers. They are
-not DevSpace package versions and are not expected to match `1.3.2`.
+not DevSpace package versions and are not expected to match `1.3.3`.
 
 This fork is a private source package named `devspace-local`. The npm package
 `@waishnav/devspace` belongs to the upstream project and is not an installation
