@@ -134,6 +134,44 @@ assert.equal(
   }).deviceHelperPath,
   join(emptyConfigDir, "custom-helper"),
 );
+assert.equal(loadConfig(baseEnv).chrome.enabled, false);
+assert.equal(loadConfig(baseEnv).chrome.taskTimeoutSeconds, 900);
+assert.match(loadConfig(baseEnv).chrome.pluginRoot, /openai-bundled\/chrome\/latest$/);
+assert.equal(
+  loadConfig({
+    ...baseEnv,
+    DEVSPACE_CHROME_ENABLED: "1",
+    DEVSPACE_CODEX_PATH: join(emptyConfigDir, "codex"),
+    DEVSPACE_CHROME_PLUGIN_ROOT: join(emptyConfigDir, "chrome"),
+    DEVSPACE_CHROME_TASK_TIMEOUT_SECONDS: "1200",
+  }).chrome.enabled,
+  true,
+);
+assert.equal(
+  loadConfig({
+    ...baseEnv,
+    DEVSPACE_CODEX_PATH: join(emptyConfigDir, "codex"),
+  }).chrome.codexPath,
+  join(emptyConfigDir, "codex"),
+);
+assert.equal(
+  loadConfig({
+    ...baseEnv,
+    DEVSPACE_CHROME_PLUGIN_ROOT: join(emptyConfigDir, "chrome"),
+  }).chrome.pluginRoot,
+  join(emptyConfigDir, "chrome"),
+);
+assert.equal(
+  loadConfig({
+    ...baseEnv,
+    DEVSPACE_CHROME_TASK_TIMEOUT_SECONDS: "1200",
+  }).chrome.taskTimeoutSeconds,
+  1200,
+);
+assert.throws(
+  () => loadConfig({ ...baseEnv, DEVSPACE_CHROME_TASK_TIMEOUT_SECONDS: "0" }),
+  /Invalid DEVSPACE_CHROME_TASK_TIMEOUT_SECONDS: 0/,
+);
 
 assert.equal(
   loadConfig({ ...baseEnv, DEVSPACE_PUBLIC_BASE_URL: "https://abc.trycloudflare.com/" }).publicBaseUrl,

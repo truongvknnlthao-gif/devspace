@@ -67,6 +67,18 @@ try {
   assert.match(shellTools.get("bash")?.description ?? "", /Wrangler deploy/);
   assert.match(shellTools.get("bash_start")?.description ?? "", /idempotency key/);
   assert.match(shellTools.get("bash_start")?.description ?? "", /does not filter/);
+
+  const chromeTools = await listTools(loadConfig({ ...baseEnv, DEVSPACE_CHROME_ENABLED: "1" }));
+  for (const tool of [
+    "chrome_status",
+    "chrome_task_start",
+    "chrome_task_status",
+    "chrome_task_cancel",
+  ]) {
+    assert.equal(chromeTools.has(tool), true, `${tool} should be present`);
+  }
+  assert.match(chromeTools.get("chrome_status")?.description ?? "", /fast local check/);
+  assert.match(chromeTools.get("chrome_task_start")?.description ?? "", /high-level workflow/);
 } finally {
   await rm(fixture, { recursive: true, force: true });
 }

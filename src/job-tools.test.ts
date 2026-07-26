@@ -30,6 +30,21 @@ const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
 try {
   await server.connect(serverTransport);
   await client.connect(clientTransport);
+  const chromeJob = await jobs.startProcess({
+    requestId: "chrome-hidden-from-bash-tools",
+    workspaceId: "__devspace_chrome__",
+    kind: "chrome:observe",
+    cwd: fixture,
+    executable: process.execPath,
+    arguments: ["-e", "console.log('private chrome event')"],
+    displayCommand: "codex exec [official Chrome task via private stdin]",
+  });
+  const hiddenStatus = await client.callTool({
+    name: "bash_status",
+    arguments: { jobId: chromeJob.job.jobId },
+  });
+  assert.equal(hiddenStatus.isError, true);
+
   const opened = await client.callTool({ name: "open_workspace", arguments: { path: fixture } });
   const workspaceId = (opened.structuredContent as { workspaceId?: string } | undefined)?.workspaceId;
   assert.equal(typeof workspaceId, "string");
@@ -85,6 +100,7 @@ try {
     arguments: { workspaceId: workspaceId!, limit: 10 },
   }))) as Array<{ jobId: string }>;
   assert.equal(listed.some((job) => job.jobId === first.jobId), true);
+  assert.equal(listed.some((job) => job.jobId === chromeJob.job.jobId), false);
 } finally {
   await client.close();
   await server.close();

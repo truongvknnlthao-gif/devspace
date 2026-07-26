@@ -1,4 +1,5 @@
 import { homedir } from "node:os";
+import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { expandHomePath } from "./roots.js";
 import type { LoggingConfig, LogFormat, LogLevel } from "./logger.js";
@@ -7,6 +8,12 @@ import { loadDevspaceFiles } from "./user-config.js";
 import { defaultDeviceHelperPath } from "./macos-device.js";
 
 export type WidgetMode = "off" | "changes" | "full";
+export interface ChromeConfig {
+  enabled: boolean;
+  codexPath: string;
+  pluginRoot: string;
+  taskTimeoutSeconds: number;
+}
 const DEFAULT_OAUTH_ACCESS_TOKEN_TTL_SECONDS = 60 * 60;
 const DEFAULT_OAUTH_REFRESH_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60;
 const DEFAULT_OAUTH_AUTHORIZATION_MAX_FAILURES = 5;
@@ -25,6 +32,7 @@ export interface ServerConfig {
   worktreeRoot: string;
   agentDir: string;
   deviceHelperPath: string;
+  chrome: ChromeConfig;
   logging: LoggingConfig;
 }
 
@@ -187,6 +195,15 @@ function defaultAgentDir(): string {
   return join(homedir(), ".codex");
 }
 
+function defaultCodexPath(): string {
+  const installed = join(homedir(), ".local", "share", "npm", "bin", "codex");
+  return existsSync(installed) ? installed : "codex";
+}
+
+function executablePath(value: string): string {
+  return value.includes("/") ? resolve(expandHomePath(value)) : value;
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
   const files = loadDevspaceFiles(env);
   const host = env.HOST ?? files.config.host ?? "127.0.0.1";
@@ -219,6 +236,21 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     deviceHelperPath: resolve(
       expandHomePath(env.DEVSPACE_DEVICE_HELPER_PATH ?? defaultDeviceHelperPath()),
     ),
+    chrome: {
+      enabled: parseBoolean(env.DEVSPACE_CHROME_ENABLED),
+      codexPath: executablePath(env.DEVSPACE_CODEX_PATH ?? defaultCodexPath()),
+      pluginRoot: resolve(
+        expandHomePath(
+          env.DEVSPACE_CHROME_PLUGIN_ROOT ??
+            join(defaultAgentDir(), "plugins", "cache", "openai-bundled", "chrome", "latest"),
+        ),
+      ),
+      taskTimeoutSeconds: parsePositiveInteger(
+        env.DEVSPACE_CHROME_TASK_TIMEOUT_SECONDS,
+        900,
+        "DEVSPACE_CHROME_TASK_TIMEOUT_SECONDS",
+      ),
+    },
     logging: parseLoggingConfig(env),
   };
 }

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.3.2 - 2026-07-26
+
+- Add optional DevSpace-managed Chrome status and durable high-level browser
+  tasks through the real local Codex CLI and installed official Chrome
+  extension/native host.
+- Keep Chrome task instructions out of command metadata, isolate raw Chrome
+  event logs from Bash job tools, and serialize active Chrome tasks.
+
 ## 1.3.0 - 2026-07-26
 
 - Add a separately signed macOS Device Helper with a stable bundle identity.

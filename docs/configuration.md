@@ -47,6 +47,10 @@ node dist/cli.js config set publicBaseUrl https://devspace.example.com
 | `DEVSPACE_STATE_DIR` | Directory for SQLite state. Defaults to `~/.local/share/devspace`. |
 | `DEVSPACE_DEVICE_HELPER_PATH` | Signed Device Helper executable. Defaults to `~/Applications/DevSpace Device Helper.app/Contents/MacOS/DevSpace Device Helper`. |
 | `DEVSPACE_SHELL_ENABLED` | Set to `1` to expose complete local command-line development workflows. Disabled by default in the distributable configuration. |
+| `DEVSPACE_CHROME_ENABLED` | Set to `1` to expose supervised tasks through the installed official Codex Chrome component. Disabled by default. |
+| `DEVSPACE_CODEX_PATH` | Codex CLI executable used for Chrome tasks. Defaults to `~/.local/share/npm/bin/codex` when present, otherwise `codex` from `PATH`. |
+| `DEVSPACE_CHROME_PLUGIN_ROOT` | Installed official Chrome plugin root. Defaults to `~/.codex/plugins/cache/openai-bundled/chrome/latest`. |
+| `DEVSPACE_CHROME_TASK_TIMEOUT_SECONDS` | Maximum and default Chrome task lifetime. Defaults to `900`. |
 
 ## OAuth
 
@@ -78,6 +82,8 @@ DevSpace exposes one canonical short-name tool surface:
 - `read`, `write`, and `edit`
 - `grep`, `glob`, and `ls`
 - optional `bash` and durable Bash job tools when shell execution is enabled
+- optional `chrome_status`, `chrome_task_start`, `chrome_task_status`, and
+  `chrome_task_cancel` when Chrome control is enabled
 - optional `show_changes` when `DEVSPACE_WIDGETS=changes`
 
 The two device tools do not require a workspace. They call the separately
@@ -95,6 +101,32 @@ Enable it after approving a trusted client with the Owner password. Commands
 run with the permissions and credentials of the DevSpace operating-system user.
 DevSpace does not block shell commands by command text, filename,
 credential-like content, service name, or destination API.
+
+## Official Chrome Control
+
+Chrome control is enabled separately from general shell access:
+
+```bash
+DEVSPACE_CHROME_ENABLED=1 node dist/cli.js serve
+```
+
+`chrome_status` performs fast local checks only. It verifies the Codex CLI,
+the installed official Chrome plugin, the extension state, the native-host
+manifest, and whether Chrome is running.
+
+`chrome_task_start` accepts one complete browser workflow and starts a durable
+local Codex task. DevSpace passes the instruction through private standard
+input; it does not place the instruction in task metadata or command audit
+previews. `mode=observe` adds an explicit instruction not to change browser or
+website state; it is a model contract, not an independent macOS enforcement
+layer. `mode=act` permits actions within the supplied instruction. DevSpace
+allows only one active Chrome task at a time. Use `chrome_task_status` for the
+concise final result and `chrome_task_cancel` to stop the process group.
+
+This adapter intentionally uses the real installed Codex CLI and official
+Chrome plugin. It does not copy or modify the signed OpenAI native host. The
+official plugin is versioned outside DevSpace, so `chrome_status` fails closed
+when its expected diagnostic scripts are absent or incompatible.
 
 ## Widgets
 
@@ -137,6 +169,7 @@ DEVSPACE_ALLOWED_ROOTS="$HOME/personal,$HOME/work" \
 DEVSPACE_PUBLIC_BASE_URL="https://devspace.example.com" \
 DEVSPACE_WORKTREE_ROOT="$HOME/.devspace/worktrees" \
 DEVSPACE_SHELL_ENABLED="0" \
+DEVSPACE_CHROME_ENABLED="0" \
 DEVSPACE_WIDGETS="full" \
 node dist/cli.js serve
 ```

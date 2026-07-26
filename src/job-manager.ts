@@ -25,6 +25,7 @@ export interface JobRecord {
   jobId: string;
   requestId: string;
   workspaceId: string;
+  kind?: string;
   cwd: string;
   command: string;
   timeoutSeconds?: number;
@@ -43,8 +44,21 @@ export interface JobRecord {
 export interface StartJobInput {
   requestId: string;
   workspaceId: string;
+  kind?: string;
   cwd: string;
   command: string;
+  timeoutSeconds?: number;
+}
+
+export interface StartProcessJobInput {
+  requestId: string;
+  workspaceId: string;
+  kind?: string;
+  cwd: string;
+  executable: string;
+  arguments?: string[];
+  stdin?: string;
+  displayCommand: string;
   timeoutSeconds?: number;
 }
 
@@ -61,6 +75,7 @@ interface JobMetadata {
   jobId: string;
   requestId: string;
   workspaceId: string;
+  kind?: string;
   cwd: string;
   command: string;
   timeoutSeconds?: number;
@@ -89,6 +104,45 @@ export class JobManager {
   }
 
   async start(input: StartJobInput): Promise<{ job: JobRecord; deduplicated: boolean }> {
+    return this.startInternal({
+      requestId: input.requestId,
+      workspaceId: input.workspaceId,
+      kind: input.kind,
+      cwd: input.cwd,
+      command: input.command,
+      displayCommand: input.command,
+      timeoutSeconds: input.timeoutSeconds,
+    });
+  }
+
+  async startProcess(
+    input: StartProcessJobInput,
+  ): Promise<{ job: JobRecord; deduplicated: boolean }> {
+    return this.startInternal({
+      requestId: input.requestId,
+      workspaceId: input.workspaceId,
+      kind: input.kind,
+      cwd: input.cwd,
+      executable: input.executable,
+      arguments: input.arguments,
+      stdin: input.stdin,
+      displayCommand: input.displayCommand,
+      timeoutSeconds: input.timeoutSeconds,
+    });
+  }
+
+  private async startInternal(input: {
+    requestId: string;
+    workspaceId: string;
+    kind?: string;
+    cwd: string;
+    command?: string;
+    executable?: string;
+    arguments?: string[];
+    stdin?: string;
+    displayCommand: string;
+    timeoutSeconds?: number;
+  }): Promise<{ job: JobRecord; deduplicated: boolean }> {
     await this.initialize();
     const normalizedRequestId = input.requestId.trim();
     if (!normalizedRequestId) throw new Error("requestId is required for reliable job deduplication.");
@@ -108,19 +162,32 @@ export class JobManager {
       jobId,
       requestId: normalizedRequestId,
       workspaceId: input.workspaceId,
+      kind: input.kind,
       cwd: input.cwd,
-      command: input.command,
+      command: input.displayCommand,
       timeoutSeconds: input.timeoutSeconds,
       status: "starting",
       createdAt: new Date().toISOString(),
     };
-    await writeAtomic(paths.commandFile, input.command, 0o600);
+    if (input.command !== undefined) {
+      await writeAtomic(paths.commandFile, input.command, 0o600);
+    }
+    if (input.stdin !== undefined) {
+      await writeAtomic(paths.stdinFile, input.stdin, 0o600);
+    }
     await writeAtomic(paths.logFile, "", 0o600);
     await writeAtomic(paths.metadataFile, `${JSON.stringify(metadata, null, 2)}\n`, 0o600);
     await writeAtomic(paths.runnerInputFile, `${JSON.stringify({
       jobId,
       cwd: input.cwd,
-      commandFile: paths.commandFile,
+      ...(input.command !== undefined ? { commandFile: paths.commandFile } : {}),
+      ...(input.executable !== undefined
+        ? {
+            executable: input.executable,
+            arguments: input.arguments ?? [],
+          }
+        : {}),
+      ...(input.stdin !== undefined ? { stdinFile: paths.stdinFile } : {}),
       logFile: paths.logFile,
       stateFile: paths.stateFile,
       cancelFile: paths.cancelFile,
@@ -280,6 +347,7 @@ export class JobManager {
       metadataFile: join(root, "job.json"),
       runnerInputFile: join(root, "runner-input.json"),
       commandFile: join(root, "command.sh"),
+      stdinFile: join(root, "stdin"),
       logFile: join(root, "output.log"),
       stateFile: join(root, "state.json"),
       cancelFile: join(root, "cancel-requested"),

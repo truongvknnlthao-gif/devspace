@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { access, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { JobManager, isActive, type JobRecord } from "./job-manager.js";
@@ -34,6 +34,30 @@ try {
   assert.match(logs.text, /hello/);
   assert.match(logs.text, /done/);
   assert.doesNotMatch(logs.text, /must not run/);
+
+  const processJob = await manager.startProcess({
+    requestId: "request-process-stdin-1",
+    workspaceId: "ws_test",
+    kind: "test:process",
+    cwd: root,
+    executable: process.execPath,
+    arguments: [
+      "-e",
+      "let input=''; process.stdin.on('data', chunk => input += chunk); process.stdin.on('end', () => console.log(`received:${input}`));",
+    ],
+    stdin: "private-input",
+    displayCommand: "node [private stdin]",
+    timeoutSeconds: 10,
+  });
+  const processCompleted = await waitForTerminal(manager, processJob.job.jobId);
+  assert.equal(processCompleted.status, "succeeded");
+  assert.equal(processCompleted.kind, "test:process");
+  assert.equal(processCompleted.command, "node [private stdin]");
+  const processLogs = await manager.logs(processJob.job.jobId, 0, 1024);
+  assert.match(processLogs.text, /received:private-input/);
+  await assert.rejects(
+    access(join(root, "jobs", processJob.job.jobId, "stdin")),
+  );
 
   const long = await manager.start({
     requestId: "request-cancel-1",
