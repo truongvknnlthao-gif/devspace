@@ -88,6 +88,12 @@ DevSpace does not manage tunnels. Your tunnel or reverse proxy should point to:
 http://127.0.0.1:7676
 ```
 
+For a named Cloudflare Tunnel, the DNS route and the running tunnel are separate
+parts of the deployment. The proxied DNS record maps the public hostname to the
+tunnel, while `cloudflared` maintains outbound connections and applies the local
+ingress rule that forwards that hostname to DevSpace. DNS alone does not expose
+the local service, and a stopped tunnel leaves the hostname unavailable.
+
 Prefer adding Cloudflare Access, Tailscale identity controls, or equivalent
 protection in front of public tunnels. DevSpace OAuth still protects the MCP
 endpoint, but the tunnel URL should not be treated as a secret.

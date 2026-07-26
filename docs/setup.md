@@ -15,6 +15,9 @@ DevSpace server built from this repository.
 
 DevSpace does not create the public tunnel. Use Cloudflare Tunnel, ngrok,
 Pinggy, Tailscale Funnel, or an HTTPS reverse proxy you control.
+For a persistent Cloudflare Tunnel on macOS, use the sanitized templates and
+provisioning checklist in
+[`deploy/macos`](../deploy/macos/README.md).
 
 ## Install The Maintained Version
 
