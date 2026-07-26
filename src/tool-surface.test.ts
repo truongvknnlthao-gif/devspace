@@ -23,9 +23,21 @@ try {
   };
 
   const defaultTools = await listTools(loadConfig(baseEnv));
-  for (const tool of ["open_workspace", "read", "write", "edit", "grep", "glob", "ls"]) {
+  for (const tool of [
+    "device_status",
+    "screen_capture",
+    "open_workspace",
+    "read",
+    "write",
+    "edit",
+    "grep",
+    "glob",
+    "ls",
+  ]) {
     assert.equal(defaultTools.has(tool), true, `${tool} should be present`);
   }
+  assert.match(defaultTools.get("device_status")?.description ?? "", /Device Helper/);
+  assert.match(defaultTools.get("screen_capture")?.description ?? "", /PNG image/);
   for (const removed of [
     "git_preflight",
     "read_gitignore",

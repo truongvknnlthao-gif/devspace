@@ -121,6 +121,25 @@ bots, or staging layouts.
 Use the trusted `bash` tool for complete command-line workflows. Keep
 product-specific automation in the owning repository or a separate plugin.
 
+## macOS Device Helper
+
+`device_status` and `screen_capture` invoke
+`~/Applications/DevSpace Device Helper.app` by default. The helper has a fixed
+bundle identifier and must be signed with the same stable Apple signing
+identity on every installation. Screen Recording permission belongs to that
+helper identity rather than to the LaunchAgent's shell script or versioned Node
+binary.
+
+Screenshots can contain sensitive information from any visible application.
+They are created in a private temporary directory, read into the MCP response,
+and deleted immediately. The helper exposes only status, permission request,
+and screenshot commands in this phase. It does not implement clicking, typing,
+Accessibility actions, or arbitrary command execution.
+
+The helper does not add a separate remote authorization boundary. The existing
+DevSpace OAuth approval remains the decision that allows an MCP client to
+request a screenshot.
+
 ## Worktrees
 
 Managed worktrees reduce accidental edits to your active checkout, but they are

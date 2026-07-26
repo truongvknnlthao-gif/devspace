@@ -77,6 +77,11 @@ should expose at least:
 Record the complete health response before and after an upgrade. Do not infer the
 running version from a checkout, branch name, package file, or symlink alone.
 
+The macOS Device Helper is intentionally outside the versioned Node runtime at
+`~/Applications/DevSpace Device Helper.app`. Preserve its bundle identifier,
+signing identity, and stable path when updating it. Validate the helper's code
+signature and `device_status` separately from `/healthz`.
+
 ## Release Layout
 
 Use versioned, immutable runtime directories. A typical layout is:

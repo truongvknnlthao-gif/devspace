@@ -4,6 +4,7 @@ import { expandHomePath } from "./roots.js";
 import type { LoggingConfig, LogFormat, LogLevel } from "./logger.js";
 import type { OAuthConfig } from "./oauth-provider.js";
 import { loadDevspaceFiles } from "./user-config.js";
+import { defaultDeviceHelperPath } from "./macos-device.js";
 
 export type WidgetMode = "off" | "changes" | "full";
 const DEFAULT_OAUTH_ACCESS_TOKEN_TTL_SECONDS = 60 * 60;
@@ -23,6 +24,7 @@ export interface ServerConfig {
   stateDir: string;
   worktreeRoot: string;
   agentDir: string;
+  deviceHelperPath: string;
   logging: LoggingConfig;
 }
 
@@ -214,6 +216,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     stateDir: resolve(expandHomePath(env.DEVSPACE_STATE_DIR ?? files.config.stateDir ?? defaultStateDir())),
     worktreeRoot: resolve(expandHomePath(env.DEVSPACE_WORKTREE_ROOT ?? files.config.worktreeRoot ?? defaultWorktreeRoot())),
     agentDir: resolve(expandHomePath(env.DEVSPACE_AGENT_DIR ?? files.config.agentDir ?? defaultAgentDir())),
+    deviceHelperPath: resolve(
+      expandHomePath(env.DEVSPACE_DEVICE_HELPER_PATH ?? defaultDeviceHelperPath()),
+    ),
     logging: parseLoggingConfig(env),
   };
 }

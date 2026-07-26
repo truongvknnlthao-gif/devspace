@@ -45,6 +45,10 @@ import { createWorkspaceStore } from "./workspace-store.js";
 import { JobManager } from "./job-manager.js";
 import { loadRuntimeInfo } from "./runtime-info.js";
 import { formatAgentsPath, WorkspaceRegistry } from "./workspaces.js";
+import {
+  deviceErrorMessage,
+  MacOSDeviceClient,
+} from "./macos-device.js";
 
 type Transport = StreamableHTTPServerTransport;
 const MCP_SESSION_IDLE_TIMEOUT_MS = 24 * 60 * 60 * 1_000;
@@ -106,6 +110,7 @@ type ToolWidgetKind =
   | "search"
   | "directory"
   | "shell"
+  | "device"
   | "show_changes";
 
 interface ToolDefinitionMeta extends Record<string, unknown> {
@@ -124,6 +129,8 @@ interface ToolWidgetDescriptorMeta {
 }
 
 function shouldAttachWidget(mode: WidgetMode, kind: ToolWidgetKind): boolean {
+  if (kind === "device") return false;
+
   switch (mode) {
     case "off":
       return false;
@@ -186,7 +193,10 @@ function serverInstructions(config: ServerConfig, toolNames: ToolNames): string 
     ? ` Use ${toolNames.shell} as a trusted local command runner for short workflows. For builds, tests, deployments, migrations, downloads, or any command that may outlive one request, use ${BASH_START_TOOL} with a stable requestId, then ${BASH_STATUS_TOOL}, ${BASH_LOGS_TOOL}, and ${BASH_CANCEL_TOOL}; after a reconnect, use ${BASH_JOBS_TOOL} to recover active jobs. Reusing the same requestId returns the existing job instead of starting a duplicate. DevSpace does not block commands by command text, filename, credential-like content, service name, or destination API; commands run with the permissions of the local DevSpace operating-system user.`
     : " Shell execution is disabled on this server.";
 
-  return `Use DevSpace as a trusted local coding workspace. Call ${toolNames.openWorkspace} once per project folder or worktree to obtain a workspaceId. Reuse that same workspaceId for all later file, search, edit, write, and show-changes tools in that folder; do not call ${toolNames.openWorkspace} again unless switching folders/worktrees, changing checkout/worktree mode, the workspaceId is rejected as unknown, or the user explicitly asks to reopen. ${agentsMd}${inspection}Prefer ${toolNames.edit} for targeted modifications and ${toolNames.write} only for new files or complete rewrites. Do not impose DevSpace-specific deny lists for commands, files, credentials, services, APIs, or destinations after the owner has approved this client.${shell}${showChanges}`;
+  const device =
+    " Use device_status to inspect the signed macOS Device Helper and permissions. Use screen_capture when visual screen state is needed; these device tools do not require a workspaceId.";
+
+  return `Use DevSpace as a trusted local coding workspace. Call ${toolNames.openWorkspace} once per project folder or worktree to obtain a workspaceId. Reuse that same workspaceId for all later file, search, edit, write, and show-changes tools in that folder; do not call ${toolNames.openWorkspace} again unless switching folders/worktrees, changing checkout/worktree mode, the workspaceId is rejected as unknown, or the user explicitly asks to reopen. ${agentsMd}${inspection}Prefer ${toolNames.edit} for targeted modifications and ${toolNames.write} only for new files or complete rewrites. Do not impose DevSpace-specific deny lists for commands, files, credentials, services, APIs, or destinations after the owner has approved this client.${device}${shell}${showChanges}`;
 }
 function resultOutputSchema(extra: z.ZodRawShape = {}): z.ZodRawShape {
   return {
@@ -439,16 +449,149 @@ export function createMcpServer(
   jobs: JobManager = new JobManager(config.stateDir),
 ): McpServer {
   const toolNames = TOOL_NAMES;
+  const device = new MacOSDeviceClient({
+    helperPath: config.deviceHelperPath,
+  });
   const server = new McpServer(
     {
       name: "devspace",
       title: "DevSpace",
       version: RUNTIME_INFO.version,
       description:
-        `Secure local coding workspace for MCP clients. Provides workspace-scoped file, search, edit, and write tools${config.shellEnabled ? ", plus explicitly enabled shell execution" : ""}.`,
+        `Secure local coding workspace and macOS device gateway for MCP clients. Provides device status and screenshots, workspace-scoped file, search, edit, and write tools${config.shellEnabled ? ", plus explicitly enabled shell execution" : ""}.`,
     },
     {
       instructions: serverInstructions(config, toolNames),
+    },
+  );
+
+  registerAppTool(
+    server,
+    "device_status",
+    {
+      title: "Device status",
+      description:
+        "Inspect the fixed-identity DevSpace Device Helper and report current macOS Screen Recording and Accessibility permissions. This is a system-level status tool and does not require open_workspace.",
+      inputSchema: {},
+      outputSchema: {
+        result: z.string(),
+        platform: z.string(),
+        supported: z.boolean(),
+        helperInstalled: z.boolean(),
+        helperPath: z.string(),
+        helperVersion: z.string().optional(),
+        bundleIdentifier: z.string().optional(),
+        screenCaptureAuthorized: z.boolean(),
+        accessibilityAuthorized: z.boolean(),
+        error: z.string().optional(),
+      },
+      ...toolWidgetDescriptorMeta(config, "device"),
+      annotations: {
+        readOnlyHint: true,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async () => {
+      const startedAt = performance.now();
+      const status = await device.status();
+      const result = JSON.stringify(status, null, 2);
+      logToolCall(config, {
+        tool: "device_status",
+        success: true,
+        durationMs: Math.round(performance.now() - startedAt),
+      });
+
+      return {
+        content: [textBlock(result)],
+        structuredContent: {
+          result,
+          ...status,
+        },
+      };
+    },
+  );
+
+  registerAppTool(
+    server,
+    "screen_capture",
+    {
+      title: "Capture screen",
+      description:
+        "Capture a macOS display through the fixed-identity DevSpace Device Helper and return a PNG image for visual inspection. This does not require open_workspace. Omit displayId to capture the main display.",
+      inputSchema: {
+        displayId: z
+          .number()
+          .int()
+          .nonnegative()
+          .optional()
+          .describe("Optional CoreGraphics display ID. Defaults to the main display."),
+      },
+      outputSchema: {
+        result: z.string(),
+        displayId: z.number().int().nonnegative().optional(),
+        width: z.number().int().positive().optional(),
+        height: z.number().int().positive().optional(),
+        mimeType: z.literal("image/png").optional(),
+        bytes: z.number().int().nonnegative().optional(),
+        error: z.string().optional(),
+      },
+      ...toolWidgetDescriptorMeta(config, "device"),
+      annotations: {
+        readOnlyHint: true,
+        idempotentHint: false,
+        openWorldHint: false,
+      },
+    },
+    async ({ displayId }) => {
+      const startedAt = performance.now();
+      try {
+        const capture = await device.capture(displayId);
+        const result =
+          `Captured display ${capture.displayId} as ${capture.width}x${capture.height} PNG (${capture.bytes} bytes).`;
+        logToolCall(config, {
+          tool: "screen_capture",
+          success: true,
+          durationMs: Math.round(performance.now() - startedAt),
+        });
+
+        return {
+          content: [
+            textBlock(result),
+            {
+              type: "image" as const,
+              data: capture.data,
+              mimeType: capture.mimeType,
+            },
+          ],
+          structuredContent: {
+            result,
+            displayId: capture.displayId,
+            width: capture.width,
+            height: capture.height,
+            mimeType: capture.mimeType,
+            bytes: capture.bytes,
+          },
+        };
+      } catch (error) {
+        const message = deviceErrorMessage(error);
+        const result = `Screen capture failed: ${message}`;
+        const content = [textBlock(result)];
+        logFailedToolResponse(
+          config,
+          { tool: "screen_capture" },
+          content,
+          startedAt,
+        );
+        return {
+          isError: true,
+          content,
+          structuredContent: {
+            result,
+            error: message,
+          },
+        };
+      }
     },
   );
 

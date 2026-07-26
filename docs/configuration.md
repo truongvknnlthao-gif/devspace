@@ -45,6 +45,7 @@ node dist/cli.js config set publicBaseUrl https://devspace.example.com
 | `DEVSPACE_OAUTH_OWNER_TOKEN` | Owner password for OAuth approval. Must be at least 16 characters. |
 | `DEVSPACE_WORKTREE_ROOT` | Directory for managed Git worktrees. Defaults to `~/.devspace/worktrees`. |
 | `DEVSPACE_STATE_DIR` | Directory for SQLite state. Defaults to `~/.local/share/devspace`. |
+| `DEVSPACE_DEVICE_HELPER_PATH` | Signed Device Helper executable. Defaults to `~/Applications/DevSpace Device Helper.app/Contents/MacOS/DevSpace Device Helper`. |
 | `DEVSPACE_SHELL_ENABLED` | Set to `1` to expose complete local command-line development workflows. Disabled by default in the distributable configuration. |
 
 ## OAuth
@@ -71,11 +72,18 @@ MCP clients discover metadata from:
 
 DevSpace exposes one canonical short-name tool surface:
 
+- `device_status`
+- `screen_capture`
 - `open_workspace`
 - `read`, `write`, and `edit`
 - `grep`, `glob`, and `ls`
 - optional `bash` and durable Bash job tools when shell execution is enabled
 - optional `show_changes` when `DEVSPACE_WIDGETS=changes`
+
+The two device tools do not require a workspace. They call the separately
+signed macOS Device Helper. `device_status` remains useful when the helper is
+missing or permission has not been granted because it reports the exact
+installation and permission state.
 
 Shell execution is enabled separately:
 

@@ -110,9 +110,19 @@ reconnection workflow.
 
 The default structured tools are:
 
+- `device_status`
+- `screen_capture`
 - `open_workspace`
 - `read`, `write`, and `edit`
 - `grep`, `glob`, and `ls`
+
+`device_status` and `screen_capture` use a separately signed macOS helper so
+Screen Recording permission belongs to a stable application identity. Install
+it once with:
+
+```bash
+npm run install:device-helper -- --request-screen-access
+```
 
 With `DEVSPACE_SHELL_ENABLED=1`, DevSpace also exposes:
 

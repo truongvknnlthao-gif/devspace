@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.3.0 - 2026-07-26
+
+- Add a separately signed macOS Device Helper with a stable bundle identity.
+- Add workspace-independent `device_status` and `screen_capture` MCP tools.
+- Keep screenshots in private temporary storage and delete them after each
+  response.
+- Defer Accessibility actions such as clicking and typing from this phase.
+
 ## 1.2.1 - 2026-07-25
 
 - Bound idle MCP session retention and await transport cleanup during shutdown.

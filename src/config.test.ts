@@ -123,6 +123,17 @@ assert.throws(
 
 assert.equal(loadConfig(baseEnv).publicBaseUrl, "http://127.0.0.1:7676");
 assert.deepEqual(loadConfig(baseEnv).allowedHosts, ["localhost", "127.0.0.1", "::1"]);
+assert.match(
+  loadConfig(baseEnv).deviceHelperPath,
+  /Applications\/DevSpace Device Helper\.app\/Contents\/MacOS\/DevSpace Device Helper$/,
+);
+assert.equal(
+  loadConfig({
+    ...baseEnv,
+    DEVSPACE_DEVICE_HELPER_PATH: join(emptyConfigDir, "custom-helper"),
+  }).deviceHelperPath,
+  join(emptyConfigDir, "custom-helper"),
+);
 
 assert.equal(
   loadConfig({ ...baseEnv, DEVSPACE_PUBLIC_BASE_URL: "https://abc.trycloudflare.com/" }).publicBaseUrl,
