@@ -2,7 +2,8 @@ import { execFile } from "node:child_process";
 import { constants } from "node:fs";
 import { access, lstat, mkdtemp, readFile, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
@@ -10,6 +11,7 @@ const DEVICE_HELPER_PROTOCOL_VERSION = 1;
 const MAX_HELPER_OUTPUT_BYTES = 1024 * 1024;
 const MAX_SCREENSHOT_BYTES = 50 * 1024 * 1024;
 const HELPER_TIMEOUT_MS = 30_000;
+const APPLICATION_LAUNCHER_PATH = "/usr/bin/open";
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
 interface HelperStatusResponse {
@@ -62,6 +64,7 @@ export interface MacOSDeviceClientOptions {
   helperPath?: string;
   platform?: NodeJS.Platform;
   temporaryDirectory?: string;
+  applicationLauncherPath?: string;
 }
 
 export function defaultDeviceHelperPath(): string {
@@ -75,15 +78,33 @@ export function defaultDeviceHelperPath(): string {
   );
 }
 
+export function deviceHelperApplicationPath(helperPath: string): string | undefined {
+  const macOSDirectory = dirname(helperPath);
+  const contentsDirectory = dirname(macOSDirectory);
+  const applicationPath = dirname(contentsDirectory);
+
+  if (
+    basename(macOSDirectory) !== "MacOS" ||
+    basename(contentsDirectory) !== "Contents" ||
+    !basename(applicationPath).endsWith(".app")
+  ) {
+    return undefined;
+  }
+  return applicationPath;
+}
+
 export class MacOSDeviceClient {
   private readonly helperPath: string;
   private readonly platform: NodeJS.Platform;
   private readonly temporaryDirectory: string;
+  private readonly applicationLauncherPath: string;
 
   constructor(options: MacOSDeviceClientOptions = {}) {
     this.helperPath = options.helperPath ?? defaultDeviceHelperPath();
     this.platform = options.platform ?? process.platform;
     this.temporaryDirectory = options.temporaryDirectory ?? tmpdir();
+    this.applicationLauncherPath =
+      options.applicationLauncherPath ?? APPLICATION_LAUNCHER_PATH;
   }
 
   async status(): Promise<MacOSDeviceStatus> {
@@ -188,6 +209,61 @@ export class MacOSDeviceClient {
   }
 
   private async runHelper<T>(args: string[]): Promise<T> {
+    const applicationPath = deviceHelperApplicationPath(this.helperPath);
+    if (!applicationPath) {
+      return this.runHelperDirectly<T>(args);
+    }
+    return this.runBundledHelper<T>(applicationPath, args);
+  }
+
+  private async runBundledHelper<T>(
+    applicationPath: string,
+    args: string[],
+  ): Promise<T> {
+    const requestDirectory = await mkdtemp(
+      join(this.temporaryDirectory, "devspace-device-helper-request-"),
+    );
+    const responsePath = join(requestDirectory, "response.json");
+    let launchError: unknown;
+
+    try {
+      try {
+        await execFileAsync(
+          this.applicationLauncherPath,
+          [
+            "-n",
+            "-g",
+            applicationPath,
+            "--args",
+            "--response",
+            responsePath,
+            ...args,
+          ],
+          {
+            encoding: "utf8",
+            maxBuffer: MAX_HELPER_OUTPUT_BYTES,
+            timeout: HELPER_TIMEOUT_MS,
+            windowsHide: true,
+          },
+        );
+      } catch (error) {
+        launchError = error;
+      }
+
+      let output: string;
+      try {
+        output = await readHelperResponseFile(responsePath, HELPER_TIMEOUT_MS);
+      } catch (responseError) {
+        if (launchError) throw launchError;
+        throw responseError;
+      }
+      return parseHelperResponse<T>(output);
+    } finally {
+      await rm(requestDirectory, { recursive: true, force: true });
+    }
+  }
+
+  private async runHelperDirectly<T>(args: string[]): Promise<T> {
     try {
       const result = await execFileAsync(this.helperPath, args, {
         encoding: "utf8",
@@ -214,6 +290,36 @@ export class MacOSDeviceClient {
 export function deviceErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
   return String(error);
+}
+
+async function readHelperResponseFile(
+  responsePath: string,
+  timeoutMs: number,
+): Promise<string> {
+  const deadline = Date.now() + timeoutMs;
+  let responseStat;
+
+  while (Date.now() < deadline) {
+    try {
+      responseStat = await lstat(responsePath);
+      break;
+    } catch {
+      await delay(25);
+    }
+  }
+
+  if (!responseStat) {
+    throw new Error("Device Helper did not create a response file before timeout.");
+  }
+  if (!responseStat.isFile() || responseStat.isSymbolicLink()) {
+    throw new Error("Device Helper response is not a regular file.");
+  }
+  if (responseStat.size < 2 || responseStat.size > MAX_HELPER_OUTPUT_BYTES) {
+    throw new Error(
+      `Device Helper response size ${responseStat.size} is outside the allowed range.`,
+    );
+  }
+  return readFile(responsePath, "utf8");
 }
 
 function parseHelperResponse<T>(output: string): T {

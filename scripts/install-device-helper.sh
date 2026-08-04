@@ -46,11 +46,15 @@ built_executable="${built_app}/Contents/MacOS/${executable_name}"
 install_parent=$(/usr/bin/dirname "${install_path}")
 incoming_path="${install_parent}/.${app_name}.incoming.$$"
 previous_path="${install_parent}/.${app_name}.previous"
+helper_request_dir=""
 
 cleanup() {
   /bin/rm -rf "${build_root}"
   if [ -e "${incoming_path}" ]; then
     /bin/rm -rf "${incoming_path}"
+  fi
+  if [ -n "${helper_request_dir}" ] && [ -e "${helper_request_dir}" ]; then
+    /bin/rm -rf "${helper_request_dir}"
   fi
 }
 trap cleanup EXIT HUP INT TERM
@@ -113,12 +117,36 @@ if [ -e "${previous_path}" ]; then
   /bin/rm -rf "${previous_path}"
 fi
 
-helper_executable="${install_path}/Contents/MacOS/${executable_name}"
+run_helper_app() {
+  helper_request_dir=$(/usr/bin/mktemp -d "${TMPDIR:-/tmp}/devspace-device-helper-request.XXXXXX")
+  response_path="${helper_request_dir}/response.json"
+
+  if ! /usr/bin/open -n -g "${install_path}" --args \
+    --response "${response_path}" "$@"; then
+    echo "Could not launch ${app_name} through LaunchServices." >&2
+    exit 1
+  fi
+
+  attempts=0
+  while [ ! -s "${response_path}" ] && [ "${attempts}" -lt 600 ]; do
+    /bin/sleep 0.05
+    attempts=$((attempts + 1))
+  done
+  if [ ! -s "${response_path}" ]; then
+    echo "${app_name} did not create a response file before timeout." >&2
+    exit 1
+  fi
+
+  /bin/cat "${response_path}"
+  /bin/rm -rf "${helper_request_dir}"
+  helper_request_dir=""
+}
+
 echo "Installed ${install_path}"
 /usr/bin/codesign -dv --verbose=2 "${install_path}" 2>&1 |
   /usr/bin/sed -n '/^Identifier=/p;/^Authority=/p;/^TeamIdentifier=/p'
-"${helper_executable}" status
+run_helper_app status
 
 if [ "${request_screen_access}" -eq 1 ]; then
-  "${helper_executable}" request-screen-capture
+  run_helper_app request-screen-capture
 fi

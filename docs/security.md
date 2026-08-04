@@ -129,12 +129,16 @@ product-specific automation in the owning repository or a separate plugin.
 
 ## macOS Device Helper
 
-`device_status` and `screen_capture` invoke
+`device_status` and `screen_capture` use
 `~/Applications/DevSpace Device Helper.app` by default. The helper has a fixed
 bundle identifier and must be signed with the same stable Apple signing
-identity on every installation. Screen Recording permission belongs to that
-helper identity rather than to the LaunchAgent's shell script or versioned Node
-binary.
+identity on every installation. The Node runtime launches the App through
+LaunchServices and exchanges command results through a mode-`0600` file in a
+private temporary directory. It does not directly spawn the bundled executable,
+because a directly spawned helper remains associated with Node as the
+responsible process for TCC decisions. Screen Recording permission therefore
+belongs to the helper App identity rather than to the LaunchAgent's shell script
+or versioned Node binary.
 
 Screenshots can contain sensitive information from any visible application.
 They are created in a private temporary directory, read into the MCP response,
