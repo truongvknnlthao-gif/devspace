@@ -1,0 +1,141 @@
+#!/bin/sh
+
+set -u
+
+PATH=/usr/bin:/bin:/usr/sbin:/sbin
+export PATH
+
+local_health_url=${DEVSPACE_LOCAL_HEALTH_URL:-http://127.0.0.1:7676/healthz}
+public_health_url=${DEVSPACE_PUBLIC_HEALTH_URL:-}
+metrics_url=${DEVSPACE_TUNNEL_METRICS_URL:-http://127.0.0.1:60123/metrics}
+tunnel_label=${DEVSPACE_TUNNEL_LABEL:-com.devspace.cloudflare-tunnel}
+failure_threshold=${DEVSPACE_TUNNEL_FAILURE_THRESHOLD:-2}
+restart_cooldown_seconds=${DEVSPACE_TUNNEL_RESTART_COOLDOWN_SECONDS:-300}
+state_dir=${DEVSPACE_TUNNEL_WATCHDOG_STATE_DIR:-${HOME:-/tmp}/.local/state/devspace/tunnel-watchdog}
+state_file="${state_dir}/state"
+dry_run=${DEVSPACE_TUNNEL_WATCHDOG_DRY_RUN:-0}
+
+log() {
+  printf '%s %s\n' "$(/bin/date -u '+%Y-%m-%dT%H:%M:%SZ')" "$*"
+}
+
+valid_unsigned_integer() {
+  case "$1" in
+    ''|*[!0-9]*) return 1 ;;
+    *) return 0 ;;
+  esac
+}
+
+http_status() {
+  status=$(
+    /usr/bin/curl \
+      --silent \
+      --output /dev/null \
+      --write-out '%{http_code}' \
+      --connect-timeout 5 \
+      --max-time 10 \
+      "$1" 2>/dev/null || true
+  )
+  if [ -z "${status}" ]; then
+    status=000
+  fi
+  printf '%s\n' "${status}"
+}
+
+read_state_value() {
+  key=$1
+  if [ ! -r "${state_file}" ]; then
+    return
+  fi
+  /usr/bin/awk -F= -v wanted="${key}" '$1 == wanted { print $2; exit }' "${state_file}"
+}
+
+write_state() {
+  failures_to_write=$1
+  last_restart_to_write=$2
+  temporary_state="${state_file}.tmp.$$"
+  {
+    printf 'failures=%s\n' "${failures_to_write}"
+    printf 'last_restart=%s\n' "${last_restart_to_write}"
+  } > "${temporary_state}"
+  /bin/mv "${temporary_state}" "${state_file}"
+}
+
+if [ -z "${public_health_url}" ]; then
+  log "disabled: DEVSPACE_PUBLIC_HEALTH_URL is not set"
+  exit 0
+fi
+
+if ! valid_unsigned_integer "${failure_threshold}" || [ "${failure_threshold}" -lt 1 ]; then
+  log "disabled: invalid failure threshold ${failure_threshold}"
+  exit 0
+fi
+
+if ! valid_unsigned_integer "${restart_cooldown_seconds}"; then
+  log "disabled: invalid restart cooldown ${restart_cooldown_seconds}"
+  exit 0
+fi
+
+/bin/mkdir -p "${state_dir}"
+
+failures=$(read_state_value failures)
+last_restart=$(read_state_value last_restart)
+if ! valid_unsigned_integer "${failures}"; then
+  failures=0
+fi
+if ! valid_unsigned_integer "${last_restart}"; then
+  last_restart=0
+fi
+
+local_status=$(http_status "${local_health_url}")
+public_status=$(http_status "${public_health_url}")
+metrics=$(/usr/bin/curl --silent --fail --connect-timeout 3 --max-time 5 "${metrics_url}" 2>/dev/null || true)
+ha_connections=$(
+  printf '%s\n' "${metrics}" |
+    /usr/bin/awk '$1 == "cloudflared_tunnel_ha_connections" { print int($2); exit }'
+)
+
+if [ "${local_status}" != 200 ]; then
+  write_state 0 "${last_restart}"
+  log "no action: local health is ${local_status}; the DevSpace service needs separate diagnosis"
+  exit 0
+fi
+
+metrics_disconnected=0
+if ! valid_unsigned_integer "${ha_connections}" || [ "${ha_connections}" -eq 0 ]; then
+  metrics_disconnected=1
+fi
+
+if [ "${public_status}" = 200 ] || [ "${metrics_disconnected}" -eq 0 ]; then
+  write_state 0 "${last_restart}"
+  log "healthy: local=${local_status} public=${public_status} ha_connections=${ha_connections}"
+  exit 0
+fi
+
+failures=$((failures + 1))
+write_state "${failures}" "${last_restart}"
+log "candidate failure ${failures}/${failure_threshold}: local=${local_status} public=${public_status} ha_connections=${ha_connections:-unavailable}"
+
+if [ "${failures}" -lt "${failure_threshold}" ]; then
+  exit 0
+fi
+
+now=$(/bin/date '+%s')
+elapsed=$((now - last_restart))
+if [ "${last_restart}" -gt 0 ] && [ "${elapsed}" -lt "${restart_cooldown_seconds}" ]; then
+  log "cooldown: last tunnel restart was ${elapsed}s ago"
+  exit 0
+fi
+
+if [ "${dry_run}" = 1 ]; then
+  write_state 0 "${last_restart}"
+  log "dry run: would restart ${tunnel_label}"
+  exit 0
+fi
+
+if /bin/launchctl kickstart -k "gui/$(/usr/bin/id -u)/${tunnel_label}"; then
+  write_state 0 "${now}"
+  log "restarted tunnel: ${tunnel_label}"
+else
+  log "restart failed: ${tunnel_label}"
+fi
