@@ -52,9 +52,12 @@ npm run install:device-helper -- --request-screen-access
 ```
 
 The helper is installed at
-`~/Applications/DevSpace Device Helper.app`. DevSpace invokes its signed
-executable directly for `device_status` and `screen_capture`. Keep the same
-bundle identifier and signing identity across upgrades so macOS can retain the
+`~/Applications/DevSpace Device Helper.app`. DevSpace launches that exact App
+through LaunchServices for `device_status` and `screen_capture`, then reads a
+mode-`0600` response from a private temporary directory. This keeps the helper
+as the responsible application for Screen Recording instead of attributing the
+request to the versioned Node runtime. Keep the same bundle identifier, signing
+identity, and stable install path across upgrades so macOS can retain the
 permission grant.
 
 The setup flow asks one question at a time.

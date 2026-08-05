@@ -107,8 +107,15 @@ running version from a checkout, branch name, package file, or symlink alone.
 
 The macOS Device Helper is intentionally outside the versioned Node runtime at
 `~/Applications/DevSpace Device Helper.app`. Preserve its bundle identifier,
-signing identity, and stable path when updating it. Validate the helper's code
-signature and `device_status` separately from `/healthz`.
+signing identity, and stable path when updating it. The runtime launches the App
+through LaunchServices so Screen Recording is attributed to the Helper rather
+than Node. Validate the helper's code signature and `device_status` separately
+from `/healthz`.
+
+When a release changes the Helper transport, install the backward-compatible
+Helper first and verify that the currently running Runtime can still call it.
+Only then switch the versioned Node Runtime. This order avoids a new Runtime
+waiting for response-file support that an older Helper does not implement.
 
 ## Release Layout
 

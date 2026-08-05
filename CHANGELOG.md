@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.4.1 - 2026-08-04
+
+- Launch the signed macOS Device Helper through LaunchServices instead of
+  spawning its executable directly from Node, so Screen Recording permission is
+  attributed to the stable Helper App identity.
+- Return Helper status, permission, and capture results through private
+  mode-`0600` response files while preserving direct invocation compatibility
+  for the previous Runtime during upgrades.
+- Install and request permission through the same App-identity path, and document
+  the required Helper-first upgrade order.
+- Package the existing DevSpace logo as a standard macOS App icon so the Helper
+  is clearly identifiable in Finder and Privacy & Security settings.
+
 ## 1.4.0 - 2026-07-26
 
 - Make Node 24 the only supported runtime across package metadata, CLI

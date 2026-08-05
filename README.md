@@ -119,8 +119,10 @@ The default structured tools are:
 - `grep`, `glob`, and `ls`
 
 `device_status` and `screen_capture` use a separately signed macOS helper so
-Screen Recording permission belongs to a stable application identity. Install
-it once with:
+Screen Recording permission belongs to a stable application identity. The
+runtime launches the `.app` through LaunchServices and exchanges results through
+a private temporary response file; it does not directly spawn the bundled
+executable as a child of Node. Install it once with:
 
 ```bash
 npm run install:device-helper -- --request-screen-access

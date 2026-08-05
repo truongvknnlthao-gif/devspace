@@ -39,6 +39,11 @@ private struct ErrorResponse: Encodable {
     let error: String
 }
 
+private struct Invocation {
+    let responsePath: String?
+    let arguments: [String]
+}
+
 private enum HelperError: LocalizedError {
     case invalidArguments(String)
     case screenCapturePermissionRequired
@@ -65,8 +70,14 @@ private enum HelperError: LocalizedError {
 @main
 private struct DevSpaceDeviceHelper {
     static func main() async {
+        let rawArguments = Array(CommandLine.arguments.dropFirst()).filter {
+            !$0.hasPrefix("-psn_")
+        }
+        let fallbackResponsePath = bestEffortResponsePath(rawArguments)
+
         do {
-            let arguments = Array(CommandLine.arguments.dropFirst())
+            let invocation = try parseInvocation(rawArguments)
+            let arguments = invocation.arguments
             guard let command = arguments.first else {
                 throw HelperError.invalidArguments(
                     "Expected one of: status, capture, request-screen-capture."
@@ -78,14 +89,14 @@ private struct DevSpaceDeviceHelper {
                 guard arguments.count == 1 else {
                     throw HelperError.invalidArguments("status does not accept arguments.")
                 }
-                try emit(status())
+                try emit(status(), responsePath: invocation.responsePath)
             case "capture":
                 let options = try parseCaptureArguments(Array(arguments.dropFirst()))
                 let result = try await capture(
                     outputPath: options.outputPath,
                     requestedDisplayId: options.displayId
                 )
-                try emit(result)
+                try emit(result, responsePath: invocation.responsePath)
             case "request-screen-capture":
                 guard arguments.count == 1 else {
                     throw HelperError.invalidArguments(
@@ -94,7 +105,10 @@ private struct DevSpaceDeviceHelper {
                 }
                 let authorized =
                     CGPreflightScreenCaptureAccess() || CGRequestScreenCaptureAccess()
-                try emit(PermissionResponse(screenCaptureAuthorized: authorized))
+                try emit(
+                    PermissionResponse(screenCaptureAuthorized: authorized),
+                    responsePath: invocation.responsePath
+                )
             default:
                 throw HelperError.invalidArguments("Unknown command: \(command)")
             }
@@ -102,9 +116,56 @@ private struct DevSpaceDeviceHelper {
             let message =
                 (error as? LocalizedError)?.errorDescription
                 ?? error.localizedDescription
-            try? emit(ErrorResponse(error: message))
+            try? emit(
+                ErrorResponse(error: message),
+                responsePath: fallbackResponsePath
+            )
             Foundation.exit(EXIT_FAILURE)
         }
+    }
+
+    private static func parseInvocation(_ arguments: [String]) throws -> Invocation {
+        var responsePath: String?
+        var commandArguments: [String] = []
+        var index = 0
+
+        while index < arguments.count {
+            if arguments[index] == "--response" {
+                index += 1
+                guard index < arguments.count else {
+                    throw HelperError.invalidArguments("--response requires a path.")
+                }
+                guard responsePath == nil else {
+                    throw HelperError.invalidArguments("--response may be provided only once.")
+                }
+                let candidate = arguments[index]
+                guard candidate.hasPrefix("/") else {
+                    throw HelperError.invalidArguments(
+                        "--response requires an absolute path."
+                    )
+                }
+                responsePath = candidate
+            } else {
+                commandArguments.append(arguments[index])
+            }
+            index += 1
+        }
+
+        return Invocation(
+            responsePath: responsePath,
+            arguments: commandArguments
+        )
+    }
+
+    private static func bestEffortResponsePath(_ arguments: [String]) -> String? {
+        guard
+            let index = arguments.firstIndex(of: "--response"),
+            arguments.indices.contains(index + 1)
+        else {
+            return nil
+        }
+        let candidate = arguments[index + 1]
+        return candidate.hasPrefix("/") ? candidate : nil
     }
 
     private static func status() -> StatusResponse {
@@ -241,11 +302,29 @@ private struct DevSpaceDeviceHelper {
         return (outputPath, displayId)
     }
 
-    private static func emit<T: Encodable>(_ value: T) throws {
+    private static func emit<T: Encodable>(
+        _ value: T,
+        responsePath: String? = nil
+    ) throws {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
-        let data = try encoder.encode(value)
-        FileHandle.standardOutput.write(data)
-        FileHandle.standardOutput.write(Data([0x0A]))
+        var data = try encoder.encode(value)
+        data.append(0x0A)
+
+        guard let responsePath else {
+            FileHandle.standardOutput.write(data)
+            return
+        }
+
+        let responseUrl = URL(fileURLWithPath: responsePath)
+        try FileManager.default.createDirectory(
+            at: responseUrl.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try data.write(to: responseUrl, options: .atomic)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o600],
+            ofItemAtPath: responsePath
+        )
     }
 }

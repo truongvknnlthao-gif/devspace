@@ -45,7 +45,7 @@ node dist/cli.js config set publicBaseUrl https://devspace.example.com
 | `DEVSPACE_OAUTH_OWNER_TOKEN` | Owner password for OAuth approval. Must be at least 16 characters. |
 | `DEVSPACE_WORKTREE_ROOT` | Directory for managed Git worktrees. Defaults to `~/.devspace/worktrees`. |
 | `DEVSPACE_STATE_DIR` | Directory for SQLite state. Defaults to `~/.local/share/devspace`. |
-| `DEVSPACE_DEVICE_HELPER_PATH` | Signed Device Helper executable. Defaults to `~/Applications/DevSpace Device Helper.app/Contents/MacOS/DevSpace Device Helper`. |
+| `DEVSPACE_DEVICE_HELPER_PATH` | Signed Device Helper executable inside its `.app` bundle. Defaults to `~/Applications/DevSpace Device Helper.app/Contents/MacOS/DevSpace Device Helper`. Bundled helpers are launched through LaunchServices so TCC attributes Screen Recording to the App identity. |
 | `DEVSPACE_SHELL_ENABLED` | Set to `1` to expose complete local command-line development workflows. Disabled by default in the distributable configuration. |
 | `DEVSPACE_CHROME_ENABLED` | Set to `1` to expose supervised tasks through the installed official Codex Chrome component. Disabled by default. |
 | `DEVSPACE_CODEX_PATH` | Codex CLI executable used for Chrome tasks. Defaults to `~/.local/share/npm/bin/codex` when present, otherwise `codex` from `PATH`. |
@@ -86,10 +86,13 @@ DevSpace exposes one canonical short-name tool surface:
   `chrome_task_cancel` when Chrome control is enabled
 - optional `show_changes` when `DEVSPACE_WIDGETS=changes`
 
-The two device tools do not require a workspace. They call the separately
-signed macOS Device Helper. `device_status` remains useful when the helper is
-missing or permission has not been granted because it reports the exact
-installation and permission state.
+The two device tools do not require a workspace. They launch the separately
+signed macOS Device Helper App through LaunchServices. `device_status` remains
+useful when the helper is missing or permission has not been granted because it
+reports the exact installation and permission state. A custom helper path that
+is not inside `Contents/MacOS` of an `.app` is executed directly for test and
+legacy compatibility, but it does not provide the fixed App-level TCC identity
+guarantee.
 
 Shell execution is enabled separately:
 
