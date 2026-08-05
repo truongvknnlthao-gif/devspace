@@ -62,6 +62,34 @@ After an error:
 This rule prevents duplicate builds, deployments, migrations, and destructive
 operations when the connector fails before returning the local result.
 
+## Tunnel Availability And Recovery
+
+Treat local runtime health, tunnel connectivity, and public OAuth/MCP behavior
+as separate layers:
+
+1. `http://127.0.0.1:7676/healthz` proves the local DevSpace runtime;
+2. `cloudflared_tunnel_ha_connections` on the loopback metrics endpoint proves
+   active Cloudflare Tunnel connections;
+3. the public `/healthz` and `npm run verify:public` prove the routed public and
+   OAuth discovery layers.
+
+A running `cloudflared` process is not sufficient evidence of tunnel health. It
+can remain alive with zero high-availability connections while the public
+hostname returns a Cloudflare 530 response.
+
+The maintained macOS deployment includes a conservative watchdog described in
+[`deploy/macos`](../deploy/macos/README.md). It may restart only the
+Cloudflare Tunnel after two consecutive checks find local DevSpace healthy,
+public health unavailable, and tunnel connections zero or metrics unavailable.
+It must not restart DevSpace or a system proxy, and it must enforce a restart
+cooldown.
+
+When Cloudflare Tunnel region hostnames are resolved through a system proxy or
+VPN, verify that they return real public IP addresses rather than the proxy's
+synthetic or Fake-IP range. Keep any client-specific DNS exception and backup
+in that client's own configuration store; never put proxy credentials or a
+machine-specific rendered configuration in this repository.
+
 ## Runtime Identity
 
 `/healthz` is the source of truth for the process currently serving DevSpace. It

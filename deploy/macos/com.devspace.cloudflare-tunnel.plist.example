@@ -10,6 +10,8 @@
     <string>tunnel</string>
     <string>--config</string>
     <string>__HOME__/.cloudflared/config-devspace.yml</string>
+    <string>--metrics</string>
+    <string>127.0.0.1:60123</string>
     <string>run</string>
   </array>
   <key>WorkingDirectory</key>

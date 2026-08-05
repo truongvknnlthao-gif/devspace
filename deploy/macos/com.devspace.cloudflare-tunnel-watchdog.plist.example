@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.devspace.cloudflare-tunnel-watchdog</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>__HOME__/.local/share/devspace-ops/devspace-tunnel-watchdog.sh</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>DEVSPACE_PUBLIC_HEALTH_URL</key>
+    <string>https://__PUBLIC_HOSTNAME__/healthz</string>
+    <key>DEVSPACE_TUNNEL_METRICS_URL</key>
+    <string>http://127.0.0.1:60123/metrics</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StartInterval</key>
+  <integer>60</integer>
+  <key>ProcessType</key>
+  <string>Background</string>
+  <key>StandardOutPath</key>
+  <string>__HOME__/.local/state/devspace/logs/tunnel-watchdog.log</string>
+  <key>StandardErrorPath</key>
+  <string>__HOME__/.local/state/devspace/logs/tunnel-watchdog-error.log</string>
+</dict>
+</plist>
