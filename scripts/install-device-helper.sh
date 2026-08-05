@@ -5,8 +5,10 @@ script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 project_root=$(CDPATH= cd -- "${script_dir}/.." && pwd)
 source_file="${project_root}/native/device-helper/DeviceHelper.swift"
 plist_file="${project_root}/native/device-helper/Info.plist"
+icon_source_file="${project_root}/docs/assets/devspace-logo-light.png"
 app_name="DevSpace Device Helper.app"
 executable_name="DevSpace Device Helper"
+icon_name="DevSpace"
 install_path="${DEVSPACE_DEVICE_HELPER_INSTALL_PATH:-${HOME}/Applications/${app_name}}"
 signing_identity="${DEVSPACE_DEVICE_HELPER_SIGNING_IDENTITY:-}"
 request_screen_access=0
@@ -43,6 +45,8 @@ fi
 build_root=$(/usr/bin/mktemp -d "${TMPDIR:-/tmp}/devspace-device-helper.XXXXXX")
 built_app="${build_root}/${app_name}"
 built_executable="${built_app}/Contents/MacOS/${executable_name}"
+built_icon="${built_app}/Contents/Resources/${icon_name}.icns"
+iconset_path="${build_root}/${icon_name}.iconset"
 install_parent=$(/usr/bin/dirname "${install_path}")
 incoming_path="${install_parent}/.${app_name}.incoming.$$"
 previous_path="${install_parent}/.${app_name}.previous"
@@ -59,8 +63,32 @@ cleanup() {
 }
 trap cleanup EXIT HUP INT TERM
 
-/bin/mkdir -p "${built_app}/Contents/MacOS"
+[ -f "${icon_source_file}" ] || {
+  echo "Device Helper icon source is missing: ${icon_source_file}" >&2
+  exit 1
+}
+
+/bin/mkdir -p "${built_app}/Contents/MacOS" "${built_app}/Contents/Resources" "${iconset_path}"
 /usr/bin/ditto "${plist_file}" "${built_app}/Contents/Info.plist"
+
+for icon_spec in \
+  "16 icon_16x16.png" \
+  "32 icon_16x16@2x.png" \
+  "32 icon_32x32.png" \
+  "64 icon_32x32@2x.png" \
+  "128 icon_128x128.png" \
+  "256 icon_128x128@2x.png" \
+  "256 icon_256x256.png" \
+  "512 icon_256x256@2x.png" \
+  "512 icon_512x512.png" \
+  "1024 icon_512x512@2x.png"
+do
+  icon_size=${icon_spec%% *}
+  icon_file=${icon_spec#* }
+  /usr/bin/sips -z "${icon_size}" "${icon_size}" \
+    "${icon_source_file}" --out "${iconset_path}/${icon_file}" >/dev/null
+ done
+/usr/bin/iconutil -c icns "${iconset_path}" -o "${built_icon}"
 
 architecture=$(/usr/bin/uname -m)
 /usr/bin/xcrun swiftc \

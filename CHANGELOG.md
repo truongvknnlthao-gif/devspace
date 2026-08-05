@@ -10,6 +10,8 @@
   for the previous Runtime during upgrades.
 - Install and request permission through the same App-identity path, and document
   the required Helper-first upgrade order.
+- Package the existing DevSpace logo as a standard macOS App icon so the Helper
+  is clearly identifiable in Finder and Privacy & Security settings.
 
 ## 1.4.0 - 2026-07-26
 

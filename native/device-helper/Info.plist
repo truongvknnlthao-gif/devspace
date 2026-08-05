@@ -8,6 +8,8 @@
   <string>DevSpace Device Helper</string>
   <key>CFBundleIdentifier</key>
   <string>com.devspace.device-helper</string>
+  <key>CFBundleIconFile</key>
+  <string>DevSpace</string>
   <key>CFBundleInfoDictionaryVersion</key>
   <string>6.0</string>
   <key>CFBundleName</key>
@@ -17,7 +19,7 @@
   <key>CFBundleShortVersionString</key>
   <string>1.1.0</string>
   <key>CFBundleVersion</key>
-  <string>2</string>
+  <string>3</string>
   <key>LSMinimumSystemVersion</key>
   <string>14.0</string>
   <key>LSUIElement</key>
